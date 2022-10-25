@@ -1,20 +1,22 @@
 package model
 
-type PendingRegistration struct {
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	City      string `json:"city"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-}
-
-type User struct {
+//Relevant part of user register form
+type RegisterUser struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-	Pending  bool   `json:"pending"`
+	Role     string `json:"role"` //ROLE_USER, ROLE_BUSINESS
 }
 
+//User login form
 type Login struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+//Stored user after registration
+type User struct {
+	Username     string `json:"username"`
+	PasswordHash string `json:"passwordHash"`
+	Role         string `json:"role"`
+	Enabled      bool   `json:"enabled"`
 }

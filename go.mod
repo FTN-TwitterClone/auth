@@ -3,6 +3,7 @@ module github.com/FTN-TwitterClone/auth
 go 1.18
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/consul/api v1.15.3
 	github.com/opentracing/opentracing-go v1.2.0
