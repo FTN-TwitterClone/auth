@@ -2,6 +2,7 @@ package consul
 
 import (
 	"fmt"
+	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/hashicorp/consul/api"
 	"os"
 )
@@ -27,4 +28,8 @@ func NewConsulAuthRepository() (*ConsulAuthRepository, error) {
 	}
 
 	return &car, nil
+}
+
+func (r *ConsulAuthRepository) SaveUser(u model.User) error {
+	return nil
 }

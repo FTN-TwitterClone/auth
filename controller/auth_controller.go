@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"github.com/FTN-TwitterClone/auth/controller/json"
+	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/service"
 	"net/http"
 )
@@ -16,7 +18,9 @@ func NewAuthController(authService *service.AuthService) *AuthController {
 }
 
 func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) {
+	ru, _ := json.DecodeJson[model.PendingRegistration](req.Body)
 
+	println(ru.FirstName)
 }
 
 func (c *AuthController) LoginUser(w http.ResponseWriter, req *http.Request) {

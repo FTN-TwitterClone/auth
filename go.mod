@@ -8,6 +8,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/uber/jaeger-lib v2.4.1+incompatible
+	golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392
 )
 
 require (
