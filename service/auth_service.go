@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/repository"
 	"github.com/google/uuid"
@@ -58,7 +59,20 @@ func (s *AuthService) RegisterUser(pr *model.RegisterUser) error {
 }
 
 func (s *AuthService) LoginUser(l *model.Login) (string, error) {
-	return "Login", nil
+	user, err := s.authRepository.GetUser(l.Username)
+	if err != nil {
+		return "", errors.New("Wrong username or password!")
+	}
+
+	if !user.Enabled {
+		return "", errors.New("Wrong username or password!")
+	}
+
+	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(l.Password)); err != nil {
+		return "", errors.New("Wrong username or password!")
+	}
+
+	return fmt.Sprintf("Token for %s", user.Username), nil
 }
 
 func (s *AuthService) VerifyRegistration(verificationId string) error {
