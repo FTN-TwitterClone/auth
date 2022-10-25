@@ -8,5 +8,5 @@ type AuthRepository interface {
 	SaveUser(u *model.User) error
 	SaveVerification(uuid string, username string) error
 	GetVerification(uuid string) (string, error)
-	DeleteVerification(u *model.User) error
+	DeleteVerification(uuid string) error
 }

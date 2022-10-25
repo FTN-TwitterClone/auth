@@ -4,6 +4,7 @@ import (
 	"github.com/FTN-TwitterClone/auth/controller/json"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/service"
+	"github.com/gorilla/mux"
 	"net/http"
 )
 
@@ -46,5 +47,10 @@ func (c *AuthController) LoginUser(w http.ResponseWriter, req *http.Request) {
 }
 
 func (c *AuthController) VerifyRegistration(w http.ResponseWriter, req *http.Request) {
+	verificationId := mux.Vars(req)["verificationId"]
 
+	err := c.authService.VerifyRegistration(verificationId)
+	if err != nil {
+		return
+	}
 }

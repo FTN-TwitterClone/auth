@@ -37,7 +37,7 @@ func main() {
 
 	router.HandleFunc("/register/", authController.RegisterUser).Methods("POST")
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
-	router.HandleFunc("/verify/{verification}/", authController.VerifyRegistration).Methods("PUT")
+	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
 
 	// start server
 	srv := &http.Server{Addr: "0.0.0.0:8001", Handler: router}

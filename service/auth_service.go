@@ -61,6 +61,25 @@ func (s *AuthService) LoginUser(l *model.Login) (string, error) {
 	return "Login", nil
 }
 
-func (s *AuthService) VerifyRegistration(verificationId string) (string, error) {
-	return "Verify", nil
+func (s *AuthService) VerifyRegistration(verificationId string) error {
+	username, err := s.authRepository.GetVerification(verificationId)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.authRepository.GetUser(username)
+
+	user.Enabled = true
+
+	err = s.authRepository.SaveUser(user)
+	if err != nil {
+		return err
+	}
+
+	err = s.authRepository.DeleteVerification(verificationId)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
