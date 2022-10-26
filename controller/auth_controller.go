@@ -1,7 +1,10 @@
 package controller
 
 import (
+	"github.com/FTN-TwitterClone/auth/controller/json"
+	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/service"
+	"github.com/gorilla/mux"
 	"net/http"
 )
 
@@ -16,13 +19,38 @@ func NewAuthController(authService *service.AuthService) *AuthController {
 }
 
 func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) {
+	pr, err := json.DecodeJson[model.RegisterUser](req.Body)
 
+	if err != nil {
+		return
+	}
+
+	err = c.authService.RegisterUser(&pr)
+	if err != nil {
+		return
+	}
 }
 
 func (c *AuthController) LoginUser(w http.ResponseWriter, req *http.Request) {
+	l, err := json.DecodeJson[model.Login](req.Body)
 
+	if err != nil {
+		return
+	}
+
+	token, err := c.authService.LoginUser(&l)
+	if err != nil {
+		return
+	}
+
+	w.Write([]byte(token))
 }
 
-func (c *AuthController) VerifyUserRegistration(w http.ResponseWriter, req *http.Request) {
+func (c *AuthController) VerifyRegistration(w http.ResponseWriter, req *http.Request) {
+	verificationId := mux.Vars(req)["verificationId"]
 
+	err := c.authService.VerifyRegistration(verificationId)
+	if err != nil {
+		return
+	}
 }
