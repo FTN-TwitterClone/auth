@@ -2,18 +2,20 @@ package main
 
 import (
 	"context"
-	"github.com/FTN-TwitterClone/auth/controller"
-	"github.com/FTN-TwitterClone/auth/repository/consul"
-	"github.com/FTN-TwitterClone/auth/service"
-	"github.com/FTN-TwitterClone/auth/tracer"
-	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/FTN-TwitterClone/auth/controller"
+	"github.com/FTN-TwitterClone/auth/repository/consul"
+	"github.com/FTN-TwitterClone/auth/service"
+	"github.com/FTN-TwitterClone/auth/tracer"
+	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -34,13 +36,18 @@ func main() {
 
 	router := mux.NewRouter()
 	router.StrictSlash(true)
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	})
 
+	handler := cors.Default().Handler(router)
 	router.HandleFunc("/register/", authController.RegisterUser).Methods("POST")
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
 	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
 
 	// start server
-	srv := &http.Server{Addr: "0.0.0.0:8001", Handler: router}
+	srv := &http.Server{Addr: "0.0.0.0:8001", Handler: handler}
 	go func() {
 		log.Println("server starting")
 		if err := srv.ListenAndServe(); err != nil {
