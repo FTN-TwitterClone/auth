@@ -26,7 +26,7 @@ func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) 
 	ctx, span := c.tracer.Start(req.Context(), "AuthController.RegisterUser")
 	defer span.End()
 
-	pr, err := json.DecodeJson[model.RegisterUser](req.Body)
+	userForm, err := json.DecodeJson[map[string]any](req.Body)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -34,7 +34,7 @@ func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	appErr := c.authService.RegisterUser(ctx, &pr)
+	appErr := c.authService.RegisterUser(ctx, userForm)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		http.Error(w, appErr.Message, appErr.Code)
