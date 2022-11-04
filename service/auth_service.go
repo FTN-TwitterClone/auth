@@ -109,7 +109,7 @@ func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, *a
 	claims := token.Claims.(jwt.MapClaims)
 	claims["username"] = user.Username
 	claims["role"] = user.Role
-	claims["exp"] = time.Now().Add(7 * 24 * time.Hour)
+	claims["exp"] = time.Now().Add(7 * 24 * time.Hour).UnixMilli()
 
 	tokenString, err := token.SignedString(sampleSecretKey)
 	if err != nil {
