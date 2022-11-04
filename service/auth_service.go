@@ -1,38 +1,50 @@
 package service
 
 import (
-	"errors"
+	"context"
 	"fmt"
+	"github.com/FTN-TwitterClone/auth/app_errors"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/repository"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
+	tracer         trace.Tracer
 	authRepository repository.AuthRepository
 }
 
-func NewAuthService(authRepository repository.AuthRepository) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository) *AuthService {
 	return &AuthService{
+		tracer,
 		authRepository,
 	}
 }
 
-func (s *AuthService) RegisterUser(pr *model.RegisterUser) error {
-	usernameExists, err := s.authRepository.UsernameExists(pr.Username)
+func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
+	defer span.End()
+
+	usernameExists, err := s.authRepository.UsernameExists(serviceCtx, pr.Username)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	if usernameExists {
-		return errors.New("Username exists")
+		return &app_errors.AppError{500, "Username exists"}
 	}
 
+	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pr.Password), 14)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
+	genPassSpan.End()
 
 	u := model.User{
 		Username:     pr.Username,
@@ -41,15 +53,17 @@ func (s *AuthService) RegisterUser(pr *model.RegisterUser) error {
 		Enabled:      false,
 	}
 
-	err = s.authRepository.SaveUser(&u)
+	err = s.authRepository.SaveUser(serviceCtx, &u)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	verificationId := uuid.New().String()
-	err = s.authRepository.SaveVerification(verificationId, u.Username)
+	err = s.authRepository.SaveVerification(serviceCtx, verificationId, u.Username)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	//TODO: send confirmation email
@@ -58,41 +72,59 @@ func (s *AuthService) RegisterUser(pr *model.RegisterUser) error {
 	return nil
 }
 
-func (s *AuthService) LoginUser(l *model.Login) (string, error) {
-	user, err := s.authRepository.GetUser(l.Username)
+func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.LoginUser")
+	defer span.End()
+
+	user, err := s.authRepository.GetUser(serviceCtx, l.Username)
 	if err != nil {
-		return "", errors.New("Wrong username or password!")
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, "Wrong username or password!"}
 	}
 
 	if !user.Enabled {
-		return "", errors.New("Wrong username or password!")
+		return "", &app_errors.AppError{500, "Wrong username or password!"}
 	}
 
-	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(l.Password)); err != nil {
-		return "", errors.New("Wrong username or password!")
+	_, convertBytes := s.tracer.Start(serviceCtx, "[]byte(...)")
+	passHash := []byte(user.PasswordHash)
+	pass := []byte(l.Password)
+	convertBytes.End()
+
+	_, bcryptSpan := s.tracer.Start(serviceCtx, "bcrypt.CompareHashAndPassword")
+	if err = bcrypt.CompareHashAndPassword(passHash, pass); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, "Wrong username or password!"}
 	}
+	bcryptSpan.End()
 
 	return fmt.Sprintf("Token for %s", user.Username), nil
 }
 
-func (s *AuthService) VerifyRegistration(verificationId string) error {
-	username, err := s.authRepository.GetVerification(verificationId)
+func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId string) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.VerifyRegistration")
+	defer span.End()
+
+	username, err := s.authRepository.GetVerification(serviceCtx, verificationId)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
-	user, err := s.authRepository.GetUser(username)
+	user, err := s.authRepository.GetUser(serviceCtx, username)
 
 	user.Enabled = true
 
-	err = s.authRepository.SaveUser(user)
+	err = s.authRepository.SaveUser(serviceCtx, user)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
-	err = s.authRepository.DeleteVerification(verificationId)
+	err = s.authRepository.DeleteVerification(serviceCtx, verificationId)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	return nil
