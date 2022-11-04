@@ -24,10 +24,10 @@ func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepositor
 }
 
 func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) error {
-	ctx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
 	defer span.End()
 
-	usernameExists, err := s.authRepository.UsernameExists(ctx, pr.Username)
+	usernameExists, err := s.authRepository.UsernameExists(serviceCtx, pr.Username)
 	if err != nil {
 		return err
 	}
@@ -36,10 +36,12 @@ func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) 
 		return errors.New("Username exists")
 	}
 
+	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pr.Password), 14)
 	if err != nil {
 		return err
 	}
+	genPassSpan.End()
 
 	u := model.User{
 		Username:     pr.Username,
@@ -48,13 +50,13 @@ func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) 
 		Enabled:      false,
 	}
 
-	err = s.authRepository.SaveUser(ctx, &u)
+	err = s.authRepository.SaveUser(serviceCtx, &u)
 	if err != nil {
 		return err
 	}
 
 	verificationId := uuid.New().String()
-	err = s.authRepository.SaveVerification(ctx, verificationId, u.Username)
+	err = s.authRepository.SaveVerification(serviceCtx, verificationId, u.Username)
 	if err != nil {
 		return err
 	}
@@ -66,10 +68,10 @@ func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) 
 }
 
 func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, error) {
-	ctx, span := s.tracer.Start(ctx, "AuthService.LoginUser")
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.LoginUser")
 	defer span.End()
 
-	user, err := s.authRepository.GetUser(ctx, l.Username)
+	user, err := s.authRepository.GetUser(serviceCtx, l.Username)
 	if err != nil {
 		return "", errors.New("Wrong username or password!")
 	}
@@ -78,32 +80,39 @@ func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, er
 		return "", errors.New("Wrong username or password!")
 	}
 
-	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(l.Password)); err != nil {
+	_, convertBytes := s.tracer.Start(serviceCtx, "[]byte(...)")
+	passHash := []byte(user.PasswordHash)
+	pass := []byte(l.Password)
+	convertBytes.End()
+
+	_, bcryptSpan := s.tracer.Start(serviceCtx, "bcrypt.CompareHashAndPassword")
+	if err = bcrypt.CompareHashAndPassword(passHash, pass); err != nil {
 		return "", errors.New("Wrong username or password!")
 	}
+	bcryptSpan.End()
 
 	return fmt.Sprintf("Token for %s", user.Username), nil
 }
 
 func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId string) error {
-	ctx, span := s.tracer.Start(ctx, "AuthService.VerifyRegistration")
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.VerifyRegistration")
 	defer span.End()
 
-	username, err := s.authRepository.GetVerification(ctx, verificationId)
+	username, err := s.authRepository.GetVerification(serviceCtx, verificationId)
 	if err != nil {
 		return err
 	}
 
-	user, err := s.authRepository.GetUser(ctx, username)
+	user, err := s.authRepository.GetUser(serviceCtx, username)
 
 	user.Enabled = true
 
-	err = s.authRepository.SaveUser(ctx, user)
+	err = s.authRepository.SaveUser(serviceCtx, user)
 	if err != nil {
 		return err
 	}
 
-	err = s.authRepository.DeleteVerification(ctx, verificationId)
+	err = s.authRepository.DeleteVerification(serviceCtx, verificationId)
 	if err != nil {
 		return err
 	}

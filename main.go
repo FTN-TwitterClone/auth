@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/FTN-TwitterClone/auth/config"
 	"github.com/FTN-TwitterClone/auth/controller"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
 	"github.com/FTN-TwitterClone/auth/service"
@@ -22,10 +21,8 @@ func main() {
 	quit := make(chan os.Signal)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	cfg := config.GetConfig()
-
 	ctx := context.Background()
-	exp, err := tracing.NewExporter(cfg.JaegerAddress)
+	exp, err := tracing.NewExporter()
 	if err != nil {
 		log.Fatalf("failed to initialize exporter: %v", err)
 	}

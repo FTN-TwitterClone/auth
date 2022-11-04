@@ -37,7 +37,7 @@ func NewConsulAuthRepository(tracer trace.Tracer) (*ConsulAuthRepository, error)
 }
 
 func (r *ConsulAuthRepository) UsernameExists(ctx context.Context, username string) (bool, error) {
-	ctx, span := r.tracer.Start(ctx, "ConsulAuthRepository.UsernameExists")
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.UsernameExists")
 	defer span.End()
 
 	kv := r.cli.KV()
@@ -58,7 +58,7 @@ func (r *ConsulAuthRepository) UsernameExists(ctx context.Context, username stri
 }
 
 func (r *ConsulAuthRepository) GetUser(ctx context.Context, username string) (*model.User, error) {
-	ctx, span := r.tracer.Start(ctx, "ConsulAuthRepository.GetUser")
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.GetUser")
 	defer span.End()
 
 	kv := r.cli.KV()
@@ -84,7 +84,7 @@ func (r *ConsulAuthRepository) GetUser(ctx context.Context, username string) (*m
 }
 
 func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) error {
-	ctx, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveUser")
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveUser")
 	defer span.End()
 
 	data, err := json.Marshal(pr)
@@ -107,7 +107,7 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 }
 
 func (r *ConsulAuthRepository) SaveVerification(ctx context.Context, uuid string, username string) error {
-	ctx, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveVerification")
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveVerification")
 	defer span.End()
 
 	kv := r.cli.KV()
@@ -125,7 +125,7 @@ func (r *ConsulAuthRepository) SaveVerification(ctx context.Context, uuid string
 }
 
 func (r *ConsulAuthRepository) GetVerification(ctx context.Context, uuid string) (string, error) {
-	ctx, span := r.tracer.Start(ctx, "ConsulAuthRepository.GetVerification")
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.GetVerification")
 	defer span.End()
 
 	kv := r.cli.KV()
@@ -145,7 +145,7 @@ func (r *ConsulAuthRepository) GetVerification(ctx context.Context, uuid string)
 }
 
 func (r *ConsulAuthRepository) DeleteVerification(ctx context.Context, uuid string) error {
-	ctx, span := r.tracer.Start(ctx, "ConsulAuthRepository.DeleteVerification")
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.DeleteVerification")
 	defer span.End()
 
 	kv := r.cli.KV()

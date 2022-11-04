@@ -7,8 +7,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 )
 
-func NewExporter(address string) (*jaeger.Exporter, error) {
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(address)))
+func NewExporter() (*jaeger.Exporter, error) {
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint())
 	if err != nil {
 		return nil, err
 	}
