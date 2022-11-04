@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/FTN-TwitterClone/auth/app_errors"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/repository"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -23,23 +24,25 @@ func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepositor
 	}
 }
 
-func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) error {
+func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) *app_errors.AppError {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
 	defer span.End()
 
 	usernameExists, err := s.authRepository.UsernameExists(serviceCtx, pr.Username)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	if usernameExists {
-		return errors.New("Username exists")
+		return &app_errors.AppError{500, "Username exists"}
 	}
 
 	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pr.Password), 14)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 	genPassSpan.End()
 
@@ -52,13 +55,15 @@ func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) 
 
 	err = s.authRepository.SaveUser(serviceCtx, &u)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	verificationId := uuid.New().String()
 	err = s.authRepository.SaveVerification(serviceCtx, verificationId, u.Username)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	//TODO: send confirmation email
@@ -67,17 +72,18 @@ func (s *AuthService) RegisterUser(ctx context.Context, pr *model.RegisterUser) 
 	return nil
 }
 
-func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, error) {
+func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.LoginUser")
 	defer span.End()
 
 	user, err := s.authRepository.GetUser(serviceCtx, l.Username)
 	if err != nil {
-		return "", errors.New("Wrong username or password!")
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, "Wrong username or password!"}
 	}
 
 	if !user.Enabled {
-		return "", errors.New("Wrong username or password!")
+		return "", &app_errors.AppError{500, "Wrong username or password!"}
 	}
 
 	_, convertBytes := s.tracer.Start(serviceCtx, "[]byte(...)")
@@ -87,20 +93,22 @@ func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, er
 
 	_, bcryptSpan := s.tracer.Start(serviceCtx, "bcrypt.CompareHashAndPassword")
 	if err = bcrypt.CompareHashAndPassword(passHash, pass); err != nil {
-		return "", errors.New("Wrong username or password!")
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, "Wrong username or password!"}
 	}
 	bcryptSpan.End()
 
 	return fmt.Sprintf("Token for %s", user.Username), nil
 }
 
-func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId string) error {
+func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId string) *app_errors.AppError {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.VerifyRegistration")
 	defer span.End()
 
 	username, err := s.authRepository.GetVerification(serviceCtx, verificationId)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	user, err := s.authRepository.GetUser(serviceCtx, username)
@@ -109,12 +117,14 @@ func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId str
 
 	err = s.authRepository.SaveUser(serviceCtx, user)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	err = s.authRepository.DeleteVerification(serviceCtx, verificationId)
 	if err != nil {
-		return err
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
 	}
 
 	return nil

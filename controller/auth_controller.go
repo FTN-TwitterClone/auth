@@ -5,6 +5,7 @@ import (
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"net/http"
 )
@@ -28,11 +29,15 @@ func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) 
 	pr, err := json.DecodeJson[model.RegisterUser](req.Body)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	err = c.authService.RegisterUser(ctx, &pr)
-	if err != nil {
+	appErr := c.authService.RegisterUser(ctx, &pr)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
 		return
 	}
 }
@@ -44,11 +49,15 @@ func (c *AuthController) LoginUser(w http.ResponseWriter, req *http.Request) {
 	l, err := json.DecodeJson[model.Login](req.Body)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	token, err := c.authService.LoginUser(ctx, &l)
-	if err != nil {
+	token, appErr := c.authService.LoginUser(ctx, &l)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
 		return
 	}
 
@@ -61,8 +70,10 @@ func (c *AuthController) VerifyRegistration(w http.ResponseWriter, req *http.Req
 
 	verificationId := mux.Vars(req)["verificationId"]
 
-	err := c.authService.VerifyRegistration(ctx, verificationId)
-	if err != nil {
+	appErr := c.authService.VerifyRegistration(ctx, verificationId)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
 		return
 	}
 }

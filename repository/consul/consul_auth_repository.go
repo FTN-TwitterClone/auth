@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/hashicorp/consul/api"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"os"
 )
@@ -47,6 +48,7 @@ func (r *ConsulAuthRepository) UsernameExists(ctx context.Context, username stri
 	data, _, err := kv.List(userKey, nil)
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 
@@ -67,6 +69,7 @@ func (r *ConsulAuthRepository) GetUser(ctx context.Context, username string) (*m
 
 	pair, _, err := kv.Get(userKey, nil)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return &model.User{}, err
 	}
 
@@ -77,6 +80,7 @@ func (r *ConsulAuthRepository) GetUser(ctx context.Context, username string) (*m
 	user := model.User{}
 	err = json.Unmarshal(pair.Value, &user)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -89,6 +93,7 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 
 	data, err := json.Marshal(pr)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -100,6 +105,7 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 
 	_, err = kv.Put(p, nil)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -118,6 +124,7 @@ func (r *ConsulAuthRepository) SaveVerification(ctx context.Context, uuid string
 
 	_, err := kv.Put(p, nil)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -134,6 +141,7 @@ func (r *ConsulAuthRepository) GetVerification(ctx context.Context, uuid string)
 
 	pair, _, err := kv.Get(verificationKey, nil)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", err
 	}
 
@@ -154,6 +162,7 @@ func (r *ConsulAuthRepository) DeleteVerification(ctx context.Context, uuid stri
 
 	_, err := kv.Delete(verificationKey, nil)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
