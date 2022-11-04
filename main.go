@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/FTN-TwitterClone/auth/controller"
+	"github.com/FTN-TwitterClone/auth/controller/jwt"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/FTN-TwitterClone/auth/tracing"
@@ -46,7 +47,10 @@ func main() {
 
 	router := mux.NewRouter()
 	router.StrictSlash(true)
-	router.Use(tracing.ExtractTraceInfoMiddleware)
+	router.Use(
+		tracing.ExtractTraceInfoMiddleware,
+		jwt.ExtractJWTUserMiddleware(tracer),
+	)
 
 	router.HandleFunc("/register/", authController.RegisterUser).Methods("POST")
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
