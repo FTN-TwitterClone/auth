@@ -2,14 +2,16 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/FTN-TwitterClone/auth/app_errors"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/repository"
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
+	"os"
+	"time"
 )
 
 type AuthService struct {
@@ -100,7 +102,22 @@ func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, *a
 	}
 	bcryptSpan.End()
 
-	return fmt.Sprintf("Token for %s", user.Username), nil
+	var sampleSecretKey = []byte(os.Getenv("SECRET_KEY"))
+
+	token := jwt.New(jwt.SigningMethodHS512)
+
+	claims := token.Claims.(jwt.MapClaims)
+	claims["username"] = user.Username
+	claims["role"] = user.Role
+	claims["exp"] = time.Now().Add(7 * 24 * time.Hour)
+
+	tokenString, err := token.SignedString(sampleSecretKey)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, ""}
+	}
+
+	return tokenString, nil
 }
 
 func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId string) *app_errors.AppError {
