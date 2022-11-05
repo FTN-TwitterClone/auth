@@ -52,7 +52,8 @@ func main() {
 		jwt.ExtractJWTUserMiddleware(tracer),
 	)
 
-	router.HandleFunc("/register/", authController.RegisterUser).Methods("POST")
+	router.HandleFunc("/register/user/", authController.RegisterUser).Methods("POST")
+	router.HandleFunc("/register/business/", authController.RegisterBusinessUser).Methods("POST")
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
 	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
 

@@ -26,11 +26,53 @@ func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepositor
 	}
 }
 
-func (s *AuthService) RegisterUser(ctx context.Context, userForm map[string]any) *app_errors.AppError {
+func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterUser) *app_errors.AppError {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
 	defer span.End()
 
-	usernameExists, err := s.authRepository.UsernameExists(serviceCtx, userForm["username"].(string))
+	userDetails := model.UserDetails{
+		userForm.Username,
+		userForm.Password,
+		"ROLE_USER",
+	}
+
+	appErr := s.saveUserAndSendConfirmation(serviceCtx, userDetails)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		return appErr
+	}
+
+	//TODO: send form to social graph and profile services
+
+	return nil
+}
+
+func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm model.RegisterBusinessUser) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterBusinessUser")
+	defer span.End()
+
+	userDetails := model.UserDetails{
+		businessUserForm.Username,
+		businessUserForm.Password,
+		"ROLE_BUSINESS",
+	}
+
+	appErr := s.saveUserAndSendConfirmation(serviceCtx, userDetails)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		return appErr
+	}
+
+	//TODO: send form to social graph and profile services
+
+	return nil
+}
+
+func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user model.UserDetails) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.saveUserAndSendConfirmation")
+	defer span.End()
+
+	usernameExists, err := s.authRepository.UsernameExists(serviceCtx, user.Username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
@@ -41,7 +83,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm map[string]any)
 	}
 
 	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
-	hashBytes, err := bcrypt.GenerateFromPassword([]byte(userForm["password"].(string)), 14)
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(user.Password), 14)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
@@ -49,9 +91,9 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm map[string]any)
 	genPassSpan.End()
 
 	u := model.User{
-		Username:     userForm["username"].(string),
+		Username:     user.Username,
 		PasswordHash: string(hashBytes),
-		Role:         userForm["role"].(string),
+		Role:         "ROLE_USER",
 		Enabled:      true, //TODO: add verify account
 	}
 
@@ -70,8 +112,6 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm map[string]any)
 
 	//TODO: send confirmation email
 	println(verificationId)
-
-	//TODO: send form to social graph and profile services
 
 	return nil
 }
