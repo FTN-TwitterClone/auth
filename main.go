@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net/http"
 	"os"
@@ -51,7 +52,7 @@ func main() {
 		conn, err := grpc.DialContext(
 			context.Background(),
 			profileAddr,
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		)
 		if err != nil {
@@ -61,12 +62,12 @@ func main() {
 		return conn, err
 	}
 
-	_, err = grpcpool.New(factory, 5, 5, time.Second)
+	pool, err := grpcpool.New(factory, 5, 5, time.Second)
 	if err != nil {
 		log.Fatalf("Failed to create gRPC pool: %v", err)
 	}
 
-	authService := service.NewAuthService(tracer, authRepository)
+	authService := service.NewAuthService(tracer, authRepository, pool)
 
 	authController := controller.NewAuthController(tracer, authService)
 

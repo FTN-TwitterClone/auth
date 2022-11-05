@@ -4,9 +4,11 @@ import (
 	"context"
 	"github.com/FTN-TwitterClone/auth/app_errors"
 	"github.com/FTN-TwitterClone/auth/model"
+	"github.com/FTN-TwitterClone/auth/proto/profile"
 	"github.com/FTN-TwitterClone/auth/repository"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
+	"github.com/processout/grpc-go-pool"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
@@ -17,12 +19,14 @@ import (
 type AuthService struct {
 	tracer         trace.Tracer
 	authRepository repository.AuthRepository
+	pool           *grpcpool.Pool
 }
 
-func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, pool *grpcpool.Pool) *AuthService {
 	return &AuthService{
 		tracer,
 		authRepository,
+		pool,
 	}
 }
 
@@ -43,6 +47,16 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 	}
 
 	//TODO: send form to social graph and profile services
+	conn, err := s.pool.Get(ctx)
+	defer conn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	profileService := profile.NewProfileServiceClient(conn.ClientConn)
+
+	profileService.RegisterUser(serviceCtx, &profile.User{})
 
 	return nil
 }
@@ -60,10 +74,8 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 	appErr := s.saveUserAndSendConfirmation(serviceCtx, userDetails)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
-		return appErr
+		return &app_errors.AppError{500, ""}
 	}
-
-	//TODO: send form to social graph and profile services
 
 	return nil
 }
