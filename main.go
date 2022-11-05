@@ -8,8 +8,11 @@ import (
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/FTN-TwitterClone/auth/tracing"
 	"github.com/gorilla/mux"
+	grpcpool "github.com/processout/grpc-go-pool"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"google.golang.org/grpc"
 	"log"
 	"net/http"
 	"os"
@@ -39,6 +42,28 @@ func main() {
 	authRepository, err := consul.NewConsulAuthRepository(tracer)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	profileAddr := "profile:9001"
+
+	var factory grpcpool.Factory
+	factory = func() (*grpc.ClientConn, error) {
+		conn, err := grpc.DialContext(
+			context.Background(),
+			profileAddr,
+			grpc.WithInsecure(),
+			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		)
+		if err != nil {
+			log.Fatalf("Failed to start gRPC connection: %v", err)
+		}
+		log.Println("Connected to employee at %s", profileAddr)
+		return conn, err
+	}
+
+	_, err = grpcpool.New(factory, 5, 5, time.Second)
+	if err != nil {
+		log.Fatalf("Failed to create gRPC pool: %v", err)
 	}
 
 	authService := service.NewAuthService(tracer, authRepository)
