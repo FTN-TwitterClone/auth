@@ -87,7 +87,11 @@ func main() {
 	srv := &http.Server{Addr: "0.0.0.0:8000", Handler: router}
 	go func() {
 		log.Println("server starting")
-		if err := srv.ListenAndServe(); err != nil {
+
+		certFile := os.Getenv("CERT")
+		keyFile := os.Getenv("KEY")
+
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			if err != http.ErrServerClosed {
 				log.Fatal(err)
 			}
