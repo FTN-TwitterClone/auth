@@ -45,7 +45,7 @@ func main() {
 
 	authRepository, err := consul.NewConsulAuthRepository(tracer)
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
 	}
 
 	profileAddr := "profile:9001"
@@ -78,6 +78,7 @@ func main() {
 	router.StrictSlash(true)
 	router.Use(
 		tracing.ExtractTraceInfoMiddleware,
+		mux.CORSMethodMiddleware(router),
 		jwt.ExtractJWTUserMiddleware(tracer),
 	)
 
@@ -88,18 +89,19 @@ func main() {
 
 	// start server
 	srv := &http.Server{
-		Addr:      "0.0.0.0:8000",
-		Handler:   router,
-		TLSConfig: getTLSConfig(),
+		Addr:    "0.0.0.0:8000",
+		Handler: router,
+		//TLSConfig: getTLSConfig(),
 	}
 
 	go func() {
 		log.Println("server starting")
 
-		certFile := os.Getenv("CERT")
-		keyFile := os.Getenv("KEY")
+		//certFile := os.Getenv("CERT")
+		//keyFile := os.Getenv("KEY")
 
-		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
+		if err := srv.ListenAndServe(); err != nil {
+			//if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			if err != http.ErrServerClosed {
 				log.Fatal(err)
 			}
