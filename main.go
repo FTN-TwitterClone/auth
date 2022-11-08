@@ -87,24 +87,24 @@ func main() {
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
 	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
 
+	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
 
 	// start server
 	srv := &http.Server{
-		Addr:    "0.0.0.0:8000",
-		Handler: handlers.CORS(allowedMethods, allowedOrigins)(router),
-		//TLSConfig: getTLSConfig(),
+		Addr:      "0.0.0.0:8000",
+		Handler:   handlers.CORS(allowedHeaders, allowedMethods, allowedOrigins)(router),
+		TLSConfig: getTLSConfig(),
 	}
 
 	go func() {
 		log.Println("server starting")
 
-		//certFile := os.Getenv("CERT")
-		//keyFile := os.Getenv("KEY")
+		certFile := os.Getenv("CERT")
+		keyFile := os.Getenv("KEY")
 
-		if err := srv.ListenAndServe(); err != nil {
-			//if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			if err != http.ErrServerClosed {
 				log.Fatal(err)
 			}
