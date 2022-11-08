@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"github.com/FTN-TwitterClone/auth/controller"
 	"github.com/FTN-TwitterClone/auth/controller/jwt"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
@@ -14,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -84,7 +87,12 @@ func main() {
 	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
 
 	// start server
-	srv := &http.Server{Addr: "0.0.0.0:8000", Handler: router}
+	srv := &http.Server{
+		Addr:      "0.0.0.0:8000",
+		Handler:   router,
+		TLSConfig: getTLSConfig(),
+	}
+
 	go func() {
 		log.Println("server starting")
 
@@ -110,4 +118,24 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Println("server stopped")
+}
+
+func getTLSConfig() *tls.Config {
+	var caCert []byte
+	var err error
+	var caCertPool *x509.CertPool
+
+	caCert, err = ioutil.ReadFile(os.Getenv("CA_CERT"))
+	if err != nil {
+		log.Fatal("Error opening cert file", err)
+	}
+	caCertPool = x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	return &tls.Config{
+		ServerName: "auth",
+		ClientAuth: tls.RequestClientCert,
+		ClientCAs:  caCertPool,
+		MinVersion: tls.VersionTLS12, // TLS versions below 1.2 are considered insecure - see https://www.rfc-editor.org/rfc/rfc7525.txt for details
+	}
 }
