@@ -9,6 +9,7 @@ import (
 	"github.com/FTN-TwitterClone/auth/repository/consul"
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/FTN-TwitterClone/auth/tracing"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpcpool "github.com/processout/grpc-go-pool"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -78,14 +79,6 @@ func main() {
 	router.StrictSlash(true)
 	router.Use(
 		tracing.ExtractTraceInfoMiddleware,
-		func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-				next.ServeHTTP(w, r)
-			})
-		},
-		mux.CORSMethodMiddleware(router),
 		jwt.ExtractJWTUserMiddleware(tracer),
 	)
 
@@ -94,10 +87,13 @@ func main() {
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
 	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
 
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})
+	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
+
 	// start server
 	srv := &http.Server{
 		Addr:    "0.0.0.0:8000",
-		Handler: router,
+		Handler: handlers.CORS(allowedMethods, allowedOrigins)(router),
 		//TLSConfig: getTLSConfig(),
 	}
 
