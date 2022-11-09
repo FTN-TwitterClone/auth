@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"github.com/FTN-TwitterClone/auth/controller"
 	"github.com/FTN-TwitterClone/auth/controller/jwt"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
 	"github.com/FTN-TwitterClone/auth/service"
+	"github.com/FTN-TwitterClone/auth/tls"
 	"github.com/FTN-TwitterClone/auth/tracing"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -16,8 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"io/ioutil"
+	"google.golang.org/grpc/credentials"
 	"log"
 	"net/http"
 	"os"
@@ -50,13 +48,14 @@ func main() {
 	}
 
 	profileAddr := "profile:9001"
+	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
 
 	var factory grpcpool.Factory
 	factory = func() (*grpc.ClientConn, error) {
 		conn, err := grpc.DialContext(
 			context.Background(),
 			profileAddr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithTransportCredentials(creds),
 			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		)
 		if err != nil {
@@ -95,7 +94,7 @@ func main() {
 	srv := &http.Server{
 		Addr:      "0.0.0.0:8000",
 		Handler:   handlers.CORS(allowedHeaders, allowedMethods, allowedOrigins)(router),
-		TLSConfig: getTLSConfig(),
+		TLSConfig: tls.GetHTTPServerTLSConfig(),
 	}
 
 	go func() {
@@ -123,24 +122,4 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Println("server stopped")
-}
-
-func getTLSConfig() *tls.Config {
-	var caCert []byte
-	var err error
-	var caCertPool *x509.CertPool
-
-	caCert, err = ioutil.ReadFile(os.Getenv("CA_CERT"))
-	if err != nil {
-		log.Fatal("Error opening cert file", err)
-	}
-	caCertPool = x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	return &tls.Config{
-		ServerName: "auth",
-		ClientAuth: tls.RequestClientCert,
-		ClientCAs:  caCertPool,
-		MinVersion: tls.VersionTLS12, // TLS versions below 1.2 are considered insecure - see https://www.rfc-editor.org/rfc/rfc7525.txt for details
-	}
 }
