@@ -23,7 +23,7 @@ func GetHTTPServerTLSConfig() *tls.Config {
 
 	return &tls.Config{
 		ServerName: "auth",
-		ClientAuth: tls.RequestClientCert,
+		ClientAuth: tls.RequireAndVerifyClientCert,
 		ClientCAs:  caCertPool,
 		MinVersion: tls.VersionTLS12, // TLS versions below 1.2 are considered insecure - see https://www.rfc-editor.org/rfc/rfc7525.txt for details
 	}
