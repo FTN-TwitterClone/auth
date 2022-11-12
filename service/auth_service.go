@@ -55,8 +55,19 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 	}
 
 	profileService := profile.NewProfileServiceClient(conn.ClientConn)
-
-	profileService.RegisterUser(serviceCtx, &profile.User{})
+	user := profile.User{
+		Username:  userForm.Username,
+		Email:     userForm.Email,
+		FirstName: userForm.FirstName,
+		LastName:  userForm.LastName,
+		Town:      userForm.Town,
+		Gender:    userForm.Gender,
+	}
+	_, err = profileService.RegisterUser(serviceCtx, &user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
 
 	return nil
 }
@@ -74,6 +85,27 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 	appErr := s.saveUserAndSendConfirmation(serviceCtx, userDetails)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	//TODO: send form to social graph and profile services
+	conn, err := s.pool.Get(ctx)
+	defer conn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	profileService := profile.NewProfileServiceClient(conn.ClientConn)
+	user := profile.BusinessUser{
+		Username:    businessUserForm.Username,
+		Email:       businessUserForm.Email,
+		Website:     businessUserForm.Website,
+		CompanyName: businessUserForm.CompanyName,
+	}
+	_, err = profileService.RegisterBusinessUser(serviceCtx, &user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
 	}
 
