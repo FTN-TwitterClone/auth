@@ -26,7 +26,7 @@ func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) 
 	ctx, span := c.tracer.Start(req.Context(), "AuthController.RegisterUser")
 	defer span.End()
 
-	pr, err := json.DecodeJson[model.RegisterUser](req.Body)
+	userForm, err := json.DecodeJson[model.RegisterUser](req.Body)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -34,7 +34,27 @@ func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	appErr := c.authService.RegisterUser(ctx, &pr)
+	appErr := c.authService.RegisterUser(ctx, userForm)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+}
+
+func (c *AuthController) RegisterBusinessUser(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "AuthController.RegisterBusinessUser")
+	defer span.End()
+
+	businessUserForm, err := json.DecodeJson[model.RegisterBusinessUser](req.Body)
+
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	appErr := c.authService.RegisterBusinessUser(ctx, businessUserForm)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		http.Error(w, appErr.Message, appErr.Code)
