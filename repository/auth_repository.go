@@ -12,4 +12,7 @@ type AuthRepository interface {
 	SaveVerification(ctx context.Context, uuid string, username string) error
 	GetVerification(ctx context.Context, uuid string) (string, error)
 	DeleteVerification(ctx context.Context, uuid string) error
+	SaveRecovery(ctx context.Context, uuid string, username string) error
+	GetRecovery(ctx context.Context, uuid string) (string, error)
+	DeleteRecovery(ctx context.Context, uuid string) error
 }

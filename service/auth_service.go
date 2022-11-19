@@ -245,6 +245,10 @@ func (s *AuthService) ChangePassword(ctx context.Context, pass model.ChangePassw
 	authUser := ctx.Value("authUser").(model.AuthUser)
 
 	user, err := s.authRepository.GetUser(serviceCtx, authUser.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
 
 	passHash := []byte(user.PasswordHash)
 	oldPass := []byte(pass.OldPassword)
@@ -267,6 +271,69 @@ func (s *AuthService) ChangePassword(ctx context.Context, pass model.ChangePassw
 	user.PasswordHash = string(hashBytes)
 
 	err = s.authRepository.SaveUser(serviceCtx, user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	return nil
+}
+
+func (s *AuthService) RequestAccountRecovery(ctx context.Context, username string) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RequestAccountRecovery")
+	defer span.End()
+
+	user, err := s.authRepository.GetUser(serviceCtx, username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	if !user.Enabled {
+		return &app_errors.AppError{500, "Wrong username or password!"}
+	}
+
+	recoveryId := uuid.New().String()
+	err = s.authRepository.SaveRecovery(serviceCtx, recoveryId, username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	go s.emailSender.SendRecoveryEmail(serviceCtx, user.Email, recoveryId)
+
+	return nil
+}
+
+func (s *AuthService) RecoverAccount(ctx context.Context, recoveryId string, pass model.NewPassword) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RecoverAccount")
+	defer span.End()
+
+	username, err := s.authRepository.GetRecovery(serviceCtx, recoveryId)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	user, err := s.authRepository.GetUser(serviceCtx, username)
+
+	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pass.Password), 14)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+	genPassSpan.End()
+
+	user.PasswordHash = string(hashBytes)
+
+	err = s.authRepository.SaveUser(serviceCtx, user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	err = s.authRepository.DeleteRecovery(serviceCtx, recoveryId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}

@@ -35,6 +35,11 @@ type ChangePassword struct {
 	NewPassword string `json:"newPassword"`
 }
 
+//Recover account password form
+type NewPassword struct {
+	Password string `json:"password"`
+}
+
 //Details relevant for storing in auth service
 type UserDetails struct {
 	Username string

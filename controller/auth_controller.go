@@ -123,3 +123,38 @@ func (c *AuthController) ChangePassword(w http.ResponseWriter, req *http.Request
 		return
 	}
 }
+
+func (c *AuthController) RequestAccountRecovery(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "AuthController.RequestAccountRecovery")
+	defer span.End()
+
+	username := mux.Vars(req)["username"]
+
+	appErr := c.authService.RequestAccountRecovery(ctx, username)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+}
+
+func (c *AuthController) RecoverAccount(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "AuthController.RecoverAccount")
+	defer span.End()
+
+	recoveryId := mux.Vars(req)["recoveryId"]
+
+	pass, err := json.DecodeJson[model.NewPassword](req.Body)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	appErr := c.authService.RecoverAccount(ctx, recoveryId, pass)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+}

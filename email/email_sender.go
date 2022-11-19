@@ -20,7 +20,16 @@ func (e EmailSender) SendVerificationEmail(ctx context.Context, recipient string
 	senderCtx, span := e.tracer.Start(ctx, "EmailSender.SendVerificationEmail")
 	defer span.End()
 
-	content := fmt.Sprintf("Click https://localhost:4200/verification/%s to verify registration.", verificationId, verificationId)
+	content := fmt.Sprintf("Click https://localhost:4200/verification/%s to verify registration.", verificationId)
+
+	e.sendEmail(senderCtx, recipient, content)
+}
+
+func (e EmailSender) SendRecoveryEmail(ctx context.Context, recipient string, recoveryId string) {
+	senderCtx, span := e.tracer.Start(ctx, "EmailSender.SendRecoveryEmail")
+	defer span.End()
+
+	content := fmt.Sprintf("Click https://localhost:4200/recover/%s to recover account.", recoveryId)
 
 	e.sendEmail(senderCtx, recipient, content)
 }
