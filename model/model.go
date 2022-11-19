@@ -29,6 +29,12 @@ type RegisterBusinessUser struct {
 	CompanyName string `json:"companyName"`
 }
 
+//Change password form
+type ChangePassword struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
+}
+
 //Details relevant for storing in auth service
 type UserDetails struct {
 	Username string

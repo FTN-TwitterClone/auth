@@ -237,3 +237,40 @@ func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId str
 
 	return nil
 }
+
+func (s *AuthService) ChangePassword(ctx context.Context, pass model.ChangePassword) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.ChangePassword")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	user, err := s.authRepository.GetUser(serviceCtx, authUser.Username)
+
+	passHash := []byte(user.PasswordHash)
+	oldPass := []byte(pass.OldPassword)
+
+	_, bcryptSpan := s.tracer.Start(serviceCtx, "bcrypt.CompareHashAndPassword")
+	if err = bcrypt.CompareHashAndPassword(passHash, oldPass); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{403, "Old password does not match!"}
+	}
+	bcryptSpan.End()
+
+	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pass.NewPassword), 14)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+	genPassSpan.End()
+
+	user.PasswordHash = string(hashBytes)
+
+	err = s.authRepository.SaveUser(serviceCtx, user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	return nil
+}
