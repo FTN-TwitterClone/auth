@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/FTN-TwitterClone/auth/app_errors"
+	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/proto/profile"
 	"github.com/FTN-TwitterClone/auth/repository"
@@ -20,13 +21,15 @@ type AuthService struct {
 	tracer         trace.Tracer
 	authRepository repository.AuthRepository
 	pool           *grpcpool.Pool
+	emailSender    *email.EmailSender
 }
 
-func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, pool *grpcpool.Pool) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, pool *grpcpool.Pool, emailSender *email.EmailSender) *AuthService {
 	return &AuthService{
 		tracer,
 		authRepository,
 		pool,
+		emailSender,
 	}
 }
 
@@ -37,6 +40,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 	userDetails := model.UserDetails{
 		userForm.Username,
 		userForm.Password,
+		userForm.Email,
 		"ROLE_USER",
 	}
 
@@ -79,6 +83,7 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 	userDetails := model.UserDetails{
 		businessUserForm.Username,
 		businessUserForm.Password,
+		businessUserForm.Email,
 		"ROLE_BUSINESS",
 	}
 
@@ -137,8 +142,9 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 	u := model.User{
 		Username:     user.Username,
 		PasswordHash: string(hashBytes),
+		Email:        user.Email,
 		Role:         "ROLE_USER",
-		Enabled:      true, //TODO: add verify account
+		Enabled:      false,
 	}
 
 	err = s.authRepository.SaveUser(serviceCtx, &u)
@@ -154,8 +160,7 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 		return &app_errors.AppError{500, ""}
 	}
 
-	//TODO: send confirmation email
-	println(verificationId)
+	go s.emailSender.SendVerificationEmail(serviceCtx, user.Email, verificationId)
 
 	return nil
 }

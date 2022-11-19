@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/FTN-TwitterClone/auth/controller"
 	"github.com/FTN-TwitterClone/auth/controller/jwt"
+	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/FTN-TwitterClone/auth/tls"
@@ -70,7 +71,9 @@ func main() {
 		log.Fatalf("Failed to create gRPC pool: %v", err)
 	}
 
-	authService := service.NewAuthService(tracer, authRepository, pool)
+	emailSender := email.NewEmailSender(tracer)
+
+	authService := service.NewAuthService(tracer, authRepository, pool, emailSender)
 
 	authController := controller.NewAuthController(tracer, authService)
 

@@ -33,6 +33,7 @@ type RegisterBusinessUser struct {
 type UserDetails struct {
 	Username string
 	Password string
+	Email    string
 	Role     string
 }
 
@@ -46,6 +47,7 @@ type Login struct {
 type User struct {
 	Username     string `json:"username"`
 	PasswordHash string `json:"passwordHash"`
+	Email        string `json:"email"`
 	Role         string `json:"role"` //ROLE_USER, ROLE_BUSINESS
 	Enabled      bool   `json:"enabled"`
 }
