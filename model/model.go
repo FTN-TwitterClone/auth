@@ -11,22 +11,24 @@ type AuthUser struct {
 
 //User register form
 type RegisterUser struct {
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	Email     string `json:"email"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	Town      string `json:"town"`
-	Gender    string `json:"gender"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	Email        string `json:"email"`
+	FirstName    string `json:"firstName"`
+	LastName     string `json:"lastName"`
+	Town         string `json:"town"`
+	Gender       string `json:"gender"`
+	CaptchaToken string `json:"captchaToken"`
 }
 
 //Business user register form
 type RegisterBusinessUser struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	Email       string `json:"email"`
-	Website     string `json:"website"`
-	CompanyName string `json:"companyName"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	Email        string `json:"email"`
+	Website      string `json:"website"`
+	CompanyName  string `json:"companyName"`
+	CaptchaToken string `json:"captchaToken"`
 }
 
 //Change password form
@@ -50,8 +52,9 @@ type UserDetails struct {
 
 //User login form
 type Login struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	CaptchaToken string `json:"captchaToken"`
 }
 
 //Stored user after registration
@@ -61,4 +64,14 @@ type User struct {
 	Email        string `json:"email"`
 	Role         string `json:"role"` //ROLE_USER, ROLE_BUSINESS
 	Enabled      bool   `json:"enabled"`
+}
+
+//Response from Google reCaptcha
+type CaptchaResponse struct {
+	Success     bool     `json:"success,omitempty"`
+	Score       float32  `json:"score,omitempty"`
+	Action      string   `json:"action,omitempty"`
+	ChallengeTs string   `json:"challenge_ts,omitempty"`
+	Hostname    string   `json:"hostname,omitempty"`
+	ErrorCodes  []string `json:"error-codes,omitempty"`
 }

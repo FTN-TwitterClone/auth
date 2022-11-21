@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/FTN-TwitterClone/auth/app_errors"
+	"github.com/FTN-TwitterClone/auth/controller/json"
 	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/proto/profile"
@@ -13,7 +15,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
+	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -36,6 +41,16 @@ func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepositor
 func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterUser) *app_errors.AppError {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
 	defer span.End()
+
+	captchaSuccess, err := s.verifyCaptcha(serviceCtx, userForm.CaptchaToken)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, "Error calling captcha server!"}
+	}
+
+	if !captchaSuccess {
+		return &app_errors.AppError{403, "Invalid captcha!"}
+	}
 
 	userDetails := model.UserDetails{
 		userForm.Username,
@@ -79,6 +94,16 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm model.RegisterBusinessUser) *app_errors.AppError {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterBusinessUser")
 	defer span.End()
+
+	captchaSuccess, err := s.verifyCaptcha(serviceCtx, businessUserForm.CaptchaToken)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, "Error calling captcha server!"}
+	}
+
+	if !captchaSuccess {
+		return &app_errors.AppError{403, "Invalid captcha!"}
+	}
 
 	userDetails := model.UserDetails{
 		businessUserForm.Username,
@@ -168,6 +193,16 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 func (s *AuthService) LoginUser(ctx context.Context, l *model.Login) (string, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.LoginUser")
 	defer span.End()
+
+	captchaSuccess, err := s.verifyCaptcha(serviceCtx, l.CaptchaToken)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, "Error calling captcha server!"}
+	}
+
+	if !captchaSuccess {
+		return "", &app_errors.AppError{403, "Invalid captcha!"}
+	}
 
 	user, err := s.authRepository.GetUser(serviceCtx, l.Username)
 	if err != nil {
@@ -340,4 +375,40 @@ func (s *AuthService) RecoverAccount(ctx context.Context, recoveryId string, pas
 	}
 
 	return nil
+}
+
+func (s *AuthService) verifyCaptcha(ctx context.Context, token string) (bool, error) {
+	_, span := s.tracer.Start(ctx, "AuthService.verifyCaptcha")
+	defer span.End()
+
+	captchaURL := "https://www.google.com/recaptcha/api/siteverify"
+	captchaSecretKey := os.Getenv("CAPTCHA_SECRET_KEY")
+
+	form := url.Values{}
+	form.Add("secret", captchaSecretKey)
+	form.Add("response", token)
+
+	res, err := http.Post(captchaURL, "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+
+	captchaResponse, err := json.DecodeJson[model.CaptchaResponse](res.Body)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+
+	if !captchaResponse.Success {
+		span.SetStatus(codes.Error, strings.Join(captchaResponse.ErrorCodes, ","))
+		return false, nil
+	}
+
+	if captchaResponse.Score > 0.7 {
+		span.SetStatus(codes.Error, fmt.Sprintf("Score is %s, minimum is 0.7!", captchaResponse.Score))
+		return true, nil
+	}
+
+	return false, nil
 }
