@@ -168,3 +168,60 @@ func (r *ConsulAuthRepository) DeleteVerification(ctx context.Context, uuid stri
 
 	return nil
 }
+
+func (r *ConsulAuthRepository) SaveRecovery(ctx context.Context, uuid string, username string) error {
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveRecovery")
+	defer span.End()
+
+	kv := r.cli.KV()
+
+	recoveryKey := fmt.Sprintf("recovery/%s/", uuid)
+
+	p := &api.KVPair{Key: recoveryKey, Value: []byte(username)}
+
+	_, err := kv.Put(p, nil)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (r *ConsulAuthRepository) GetRecovery(ctx context.Context, uuid string) (string, error) {
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.GetRecovery")
+	defer span.End()
+
+	kv := r.cli.KV()
+
+	recoveryKey := fmt.Sprintf("recovery/%s/", uuid)
+
+	pair, _, err := kv.Get(recoveryKey, nil)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
+	}
+
+	if pair == nil {
+		return "", errors.New("Recovery doesn't exist!")
+	}
+
+	return string(pair.Value), nil
+}
+
+func (r *ConsulAuthRepository) DeleteRecovery(ctx context.Context, uuid string) error {
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.DeleteRecovery")
+	defer span.End()
+
+	kv := r.cli.KV()
+
+	recoveryKey := fmt.Sprintf("recovery/%s/", uuid)
+
+	_, err := kv.Delete(recoveryKey, nil)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	return nil
+}

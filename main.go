@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/FTN-TwitterClone/auth/controller"
 	"github.com/FTN-TwitterClone/auth/controller/jwt"
+	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/FTN-TwitterClone/auth/tls"
@@ -70,7 +71,9 @@ func main() {
 		log.Fatalf("Failed to create gRPC pool: %v", err)
 	}
 
-	authService := service.NewAuthService(tracer, authRepository, pool)
+	emailSender := email.NewEmailSender(tracer)
+
+	authService := service.NewAuthService(tracer, authRepository, pool, emailSender)
 
 	authController := controller.NewAuthController(tracer, authService)
 
@@ -85,6 +88,9 @@ func main() {
 	router.HandleFunc("/register/business/", authController.RegisterBusinessUser).Methods("POST")
 	router.HandleFunc("/login/", authController.LoginUser).Methods("POST")
 	router.HandleFunc("/verify/{verificationId}/", authController.VerifyRegistration).Methods("PUT")
+	router.HandleFunc("/password/change/", authController.ChangePassword).Methods("PUT")
+	router.HandleFunc("/account/{username}/recover/", authController.RequestAccountRecovery).Methods("PUT")
+	router.HandleFunc("/recover/{recoveryId}/", authController.RecoverAccount).Methods("PUT")
 
 	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})

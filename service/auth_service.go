@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/FTN-TwitterClone/auth/app_errors"
+	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/proto/profile"
 	"github.com/FTN-TwitterClone/auth/repository"
@@ -20,13 +21,15 @@ type AuthService struct {
 	tracer         trace.Tracer
 	authRepository repository.AuthRepository
 	pool           *grpcpool.Pool
+	emailSender    *email.EmailSender
 }
 
-func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, pool *grpcpool.Pool) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, pool *grpcpool.Pool, emailSender *email.EmailSender) *AuthService {
 	return &AuthService{
 		tracer,
 		authRepository,
 		pool,
+		emailSender,
 	}
 }
 
@@ -37,6 +40,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 	userDetails := model.UserDetails{
 		userForm.Username,
 		userForm.Password,
+		userForm.Email,
 		"ROLE_USER",
 	}
 
@@ -79,6 +83,7 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 	userDetails := model.UserDetails{
 		businessUserForm.Username,
 		businessUserForm.Password,
+		businessUserForm.Email,
 		"ROLE_BUSINESS",
 	}
 
@@ -137,8 +142,9 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 	u := model.User{
 		Username:     user.Username,
 		PasswordHash: string(hashBytes),
+		Email:        user.Email,
 		Role:         "ROLE_USER",
-		Enabled:      true, //TODO: add verify account
+		Enabled:      false,
 	}
 
 	err = s.authRepository.SaveUser(serviceCtx, &u)
@@ -154,8 +160,7 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 		return &app_errors.AppError{500, ""}
 	}
 
-	//TODO: send confirmation email
-	println(verificationId)
+	go s.emailSender.SendVerificationEmail(serviceCtx, user.Email, verificationId)
 
 	return nil
 }
@@ -225,6 +230,110 @@ func (s *AuthService) VerifyRegistration(ctx context.Context, verificationId str
 	}
 
 	err = s.authRepository.DeleteVerification(serviceCtx, verificationId)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	return nil
+}
+
+func (s *AuthService) ChangePassword(ctx context.Context, pass model.ChangePassword) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.ChangePassword")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	user, err := s.authRepository.GetUser(serviceCtx, authUser.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	passHash := []byte(user.PasswordHash)
+	oldPass := []byte(pass.OldPassword)
+
+	_, bcryptSpan := s.tracer.Start(serviceCtx, "bcrypt.CompareHashAndPassword")
+	if err = bcrypt.CompareHashAndPassword(passHash, oldPass); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{403, "Old password does not match!"}
+	}
+	bcryptSpan.End()
+
+	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pass.NewPassword), 14)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+	genPassSpan.End()
+
+	user.PasswordHash = string(hashBytes)
+
+	err = s.authRepository.SaveUser(serviceCtx, user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	return nil
+}
+
+func (s *AuthService) RequestAccountRecovery(ctx context.Context, username string) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RequestAccountRecovery")
+	defer span.End()
+
+	user, err := s.authRepository.GetUser(serviceCtx, username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	if !user.Enabled {
+		return &app_errors.AppError{500, "Wrong username or password!"}
+	}
+
+	recoveryId := uuid.New().String()
+	err = s.authRepository.SaveRecovery(serviceCtx, recoveryId, username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	go s.emailSender.SendRecoveryEmail(serviceCtx, user.Email, recoveryId)
+
+	return nil
+}
+
+func (s *AuthService) RecoverAccount(ctx context.Context, recoveryId string, pass model.NewPassword) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RecoverAccount")
+	defer span.End()
+
+	username, err := s.authRepository.GetRecovery(serviceCtx, recoveryId)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	user, err := s.authRepository.GetUser(serviceCtx, username)
+
+	_, genPassSpan := s.tracer.Start(serviceCtx, "bcrypt.GenerateFromPassword")
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(pass.Password), 14)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+	genPassSpan.End()
+
+	user.PasswordHash = string(hashBytes)
+
+	err = s.authRepository.SaveUser(serviceCtx, user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	err = s.authRepository.DeleteRecovery(serviceCtx, recoveryId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
