@@ -1,10 +1,32 @@
 package validation
 
 import (
+	"bufio"
 	"github.com/go-playground/validator/v10"
+	"log"
+	"os"
 	"reflect"
 	"unicode"
 )
+
+var blacklist map[string]bool
+
+func init() {
+	blacklist = make(map[string]bool, 10000)
+
+	blacklistPath := os.Getenv("PASS_BLACKLIST")
+
+	file, err := os.Open(blacklistPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		blacklist[scanner.Text()] = true
+	}
+}
 
 func ValidatePassword(fl validator.FieldLevel) bool {
 	field := fl.Field()
@@ -53,5 +75,9 @@ func validateContent(password string) bool {
 }
 
 func validateBlacklist(password string) bool {
+	if _, ok := blacklist[password]; ok {
+		return false
+	}
+
 	return true
 }

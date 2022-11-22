@@ -12,8 +12,8 @@ type AuthUser struct {
 //User register form
 type RegisterUser struct {
 	Username     string `json:"username" validate:"required"`
-	Password     string `json:"password" validate:"password"`
-	Email        string `json:"email" validate:"email"`
+	Password     string `json:"password" validate:"required,password"`
+	Email        string `json:"email" validate:"required,email"`
 	FirstName    string `json:"firstName" validate:"required"`
 	LastName     string `json:"lastName" validate:"required"`
 	Town         string `json:"town" validate:"required"`
@@ -24,8 +24,8 @@ type RegisterUser struct {
 //Business user register form
 type RegisterBusinessUser struct {
 	Username     string `json:"username" validate:"required"`
-	Password     string `json:"password" validate:"password"`
-	Email        string `json:"email" validate:"email"`
+	Password     string `json:"password" validate:"required,password"`
+	Email        string `json:"email" validate:"required,email"`
 	Website      string `json:"website" validate:"required"`
 	CompanyName  string `json:"companyName" validate:"required"`
 	CaptchaToken string `json:"captchaToken" validate:"required"`
