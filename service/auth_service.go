@@ -45,15 +45,15 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 	serviceCtx, span := s.tracer.Start(ctx, "AuthService.RegisterUser")
 	defer span.End()
 
-	//captchaSuccess, err := s.verifyCaptcha(serviceCtx, userForm.CaptchaToken)
-	//if err != nil {
-	//	span.SetStatus(codes.Error, err.Error())
-	//	return &app_errors.AppError{500, "Error calling captcha server!"}
-	//}
-	//
-	//if !captchaSuccess {
-	//	return &app_errors.AppError{403, "Invalid captcha!"}
-	//}
+	captchaSuccess, err := s.verifyCaptcha(serviceCtx, userForm.CaptchaToken)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, "Error calling captcha server!"}
+	}
+
+	if !captchaSuccess {
+		return &app_errors.AppError{403, "Invalid captcha!"}
+	}
 
 	userDetails := model.UserDetails{
 		userForm.Username,
@@ -145,26 +145,47 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 		return &app_errors.AppError{500, ""}
 	}
 
-	////TODO: send form to social graph and profile services
-	//conn, err := s.profilePool.Get(ctx)
-	//defer conn.Close()
-	//if err != nil {
-	//	span.SetStatus(codes.Error, err.Error())
-	//	return appErr
-	//}
-	//
-	//profileService := profile.NewProfileServiceClient(conn.ClientConn)
-	//user := profile.BusinessUser{
-	//	Username:    businessUserForm.Username,
-	//	Email:       businessUserForm.Email,
-	//	Website:     businessUserForm.Website,
-	//	CompanyName: businessUserForm.CompanyName,
-	//}
-	//_, err = profileService.RegisterBusinessUser(serviceCtx, &user)
-	//if err != nil {
-	//	span.SetStatus(codes.Error, err.Error())
-	//	return &app_errors.AppError{500, ""}
-	//}
+	conn, err := getgRPCConnection("profile:9001")
+	defer conn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	profileService := profile.NewProfileServiceClient(conn)
+	user := profile.ProfileBusinessUser{
+		Username:    businessUserForm.Username,
+		Email:       businessUserForm.Email,
+		Website:     businessUserForm.Website,
+		CompanyName: businessUserForm.CompanyName,
+	}
+	_, err = profileService.RegisterBusinessUser(serviceCtx, &user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	suser := social_graph.SocialGraphBusinessUser{
+		Username:    businessUserForm.Username,
+		Email:       businessUserForm.Email,
+		Website:     businessUserForm.Website,
+		CompanyName: businessUserForm.CompanyName,
+	}
+
+	sconn, err := getgRPCConnection("social-graph:9001")
+	defer sconn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	socialGraphService := social_graph.NewSocialGraphServiceClient(sconn)
+
+	_, err = socialGraphService.RegisterBusinessUser(serviceCtx, &suser)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
 
 	return nil
 }
