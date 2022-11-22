@@ -11,12 +11,8 @@ import (
 	"github.com/FTN-TwitterClone/auth/tracing"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	grpcpool "github.com/processout/grpc-go-pool"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"log"
 	"net/http"
 	"os"
@@ -48,32 +44,9 @@ func main() {
 		//log.Fatal(err)
 	}
 
-	profileAddr := "profile:9001"
-	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
-
-	var factory grpcpool.Factory
-	factory = func() (*grpc.ClientConn, error) {
-		conn, err := grpc.DialContext(
-			context.Background(),
-			profileAddr,
-			grpc.WithTransportCredentials(creds),
-			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-		)
-		if err != nil {
-			log.Fatalf("Failed to start gRPC connection: %v", err)
-		}
-		log.Println("Connected to employee at %s", profileAddr)
-		return conn, err
-	}
-
-	pool, err := grpcpool.New(factory, 5, 5, time.Second)
-	if err != nil {
-		log.Fatalf("Failed to create gRPC pool: %v", err)
-	}
-
 	emailSender := email.NewEmailSender(tracer)
 
-	authService := service.NewAuthService(tracer, authRepository, pool, emailSender)
+	authService := service.NewAuthService(tracer, authRepository, emailSender)
 
 	authController := controller.NewAuthController(tracer, authService)
 
