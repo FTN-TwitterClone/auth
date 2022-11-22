@@ -11,24 +11,24 @@ type AuthUser struct {
 
 //User register form
 type RegisterUser struct {
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	Email        string `json:"email"`
-	FirstName    string `json:"firstName"`
-	LastName     string `json:"lastName"`
-	Town         string `json:"town"`
-	Gender       string `json:"gender"`
-	CaptchaToken string `json:"captchaToken"`
+	Username     string `json:"username" validate:"required"`
+	Password     string `json:"password" validate:"password"`
+	Email        string `json:"email" validate:"email"`
+	FirstName    string `json:"firstName" validate:"required"`
+	LastName     string `json:"lastName" validate:"required"`
+	Town         string `json:"town" validate:"required"`
+	Gender       string `json:"gender" validate:"required"`
+	CaptchaToken string `json:"captchaToken" validate:"required"`
 }
 
 //Business user register form
 type RegisterBusinessUser struct {
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	Email        string `json:"email"`
-	Website      string `json:"website"`
-	CompanyName  string `json:"companyName"`
-	CaptchaToken string `json:"captchaToken"`
+	Username     string `json:"username" validate:"required"`
+	Password     string `json:"password" validate:"password"`
+	Email        string `json:"email" validate:"email"`
+	Website      string `json:"website" validate:"required"`
+	CompanyName  string `json:"companyName" validate:"required"`
+	CaptchaToken string `json:"captchaToken" validate:"required"`
 }
 
 //Change password form

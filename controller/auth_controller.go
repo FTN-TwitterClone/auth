@@ -4,6 +4,8 @@ import (
 	"github.com/FTN-TwitterClone/auth/controller/json"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/service"
+	"github.com/FTN-TwitterClone/auth/validation"
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -13,12 +15,17 @@ import (
 type AuthController struct {
 	tracer      trace.Tracer
 	authService *service.AuthService
+	validator   *validator.Validate
 }
 
 func NewAuthController(tracer trace.Tracer, authService *service.AuthService) *AuthController {
+	v := validator.New()
+	v.RegisterValidation("password", validation.ValidatePassword)
+
 	return &AuthController{
 		tracer,
 		authService,
+		v,
 	}
 }
 
@@ -27,10 +34,16 @@ func (c *AuthController) RegisterUser(w http.ResponseWriter, req *http.Request) 
 	defer span.End()
 
 	userForm, err := json.DecodeJson[model.RegisterUser](req.Body)
-
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	err = c.validator.Struct(userForm)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 422)
 		return
 	}
 
@@ -51,6 +64,13 @@ func (c *AuthController) RegisterBusinessUser(w http.ResponseWriter, req *http.R
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	err = c.validator.Struct(businessUserForm)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 422)
 		return
 	}
 
