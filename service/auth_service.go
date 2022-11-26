@@ -405,10 +405,10 @@ func (s *AuthService) verifyCaptcha(ctx context.Context, token string) (bool, er
 		return false, nil
 	}
 
-	if captchaResponse.Score > 0.7 {
-		span.SetStatus(codes.Error, fmt.Sprintf("Score is %s, minimum is 0.7!", captchaResponse.Score))
-		return true, nil
+	if captchaResponse.Score < 0.7 {
+		span.SetStatus(codes.Error, fmt.Sprintf("Score is %f, minimum is 0.7!", captchaResponse.Score))
+		return false, nil
 	}
 
-	return false, nil
+	return true, nil
 }
