@@ -7,14 +7,19 @@ import (
 	"github.com/FTN-TwitterClone/auth/controller/json"
 	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/model"
-	"github.com/FTN-TwitterClone/auth/proto/profile"
 	"github.com/FTN-TwitterClone/auth/repository"
+	"github.com/FTN-TwitterClone/auth/tls"
+	"github.com/FTN-TwitterClone/grpc-stubs/proto/profile"
+	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
-	"github.com/processout/grpc-go-pool"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,15 +30,13 @@ import (
 type AuthService struct {
 	tracer         trace.Tracer
 	authRepository repository.AuthRepository
-	pool           *grpcpool.Pool
 	emailSender    *email.EmailSender
 }
 
-func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, pool *grpcpool.Pool, emailSender *email.EmailSender) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, emailSender *email.EmailSender) *AuthService {
 	return &AuthService{
 		tracer,
 		authRepository,
-		pool,
 		emailSender,
 	}
 }
@@ -65,16 +68,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 		return appErr
 	}
 
-	//TODO: send form to social graph and profile services
-	conn, err := s.pool.Get(ctx)
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return appErr
-	}
-
-	profileService := profile.NewProfileServiceClient(conn.ClientConn)
-	user := profile.User{
+	user := profile.ProfileUser{
 		Username:  userForm.Username,
 		Email:     userForm.Email,
 		FirstName: userForm.FirstName,
@@ -82,7 +76,40 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 		Town:      userForm.Town,
 		Gender:    userForm.Gender,
 	}
+
+	conn, err := getgRPCConnection("profile:9001")
+	defer conn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	profileService := profile.NewProfileServiceClient(conn)
 	_, err = profileService.RegisterUser(serviceCtx, &user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	suser := social_graph.SocialGraphUser{
+		Username:  userForm.Username,
+		Email:     userForm.Email,
+		FirstName: userForm.FirstName,
+		LastName:  userForm.LastName,
+		Town:      userForm.Town,
+		Gender:    userForm.Gender,
+	}
+
+	sconn, err := getgRPCConnection("social-graph:9001")
+	defer sconn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	socialGraphService := social_graph.NewSocialGraphServiceClient(sconn)
+
+	_, err = socialGraphService.RegisterUser(serviceCtx, &suser)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
@@ -118,22 +145,43 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 		return &app_errors.AppError{500, ""}
 	}
 
-	//TODO: send form to social graph and profile services
-	conn, err := s.pool.Get(ctx)
+	conn, err := getgRPCConnection("profile:9001")
 	defer conn.Close()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return appErr
 	}
 
-	profileService := profile.NewProfileServiceClient(conn.ClientConn)
-	user := profile.BusinessUser{
+	profileService := profile.NewProfileServiceClient(conn)
+	user := profile.ProfileBusinessUser{
 		Username:    businessUserForm.Username,
 		Email:       businessUserForm.Email,
 		Website:     businessUserForm.Website,
 		CompanyName: businessUserForm.CompanyName,
 	}
 	_, err = profileService.RegisterBusinessUser(serviceCtx, &user)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return &app_errors.AppError{500, ""}
+	}
+
+	suser := social_graph.SocialGraphBusinessUser{
+		Username:    businessUserForm.Username,
+		Email:       businessUserForm.Email,
+		Website:     businessUserForm.Website,
+		CompanyName: businessUserForm.CompanyName,
+	}
+
+	sconn, err := getgRPCConnection("social-graph:9001")
+	defer sconn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return appErr
+	}
+
+	socialGraphService := social_graph.NewSocialGraphServiceClient(sconn)
+
+	_, err = socialGraphService.RegisterBusinessUser(serviceCtx, &suser)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
@@ -405,10 +453,27 @@ func (s *AuthService) verifyCaptcha(ctx context.Context, token string) (bool, er
 		return false, nil
 	}
 
-	if captchaResponse.Score > 0.7 {
-		span.SetStatus(codes.Error, fmt.Sprintf("Score is %s, minimum is 0.7!", captchaResponse.Score))
-		return true, nil
+	if captchaResponse.Score < 0.7 {
+		span.SetStatus(codes.Error, fmt.Sprintf("Score is %f, minimum is 0.7!", captchaResponse.Score))
+		return false, nil
 	}
 
-	return false, nil
+	return true, nil
+}
+
+func getgRPCConnection(address string) (*grpc.ClientConn, error) {
+	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
+
+	conn, err := grpc.DialContext(
+		context.Background(),
+		address,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+	)
+
+	if err != nil {
+		log.Fatalf("Failed to start gRPC connection: %v", err)
+	}
+
+	return conn, err
 }
