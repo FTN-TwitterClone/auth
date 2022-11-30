@@ -6,6 +6,7 @@ import (
 	"github.com/FTN-TwitterClone/auth/controller/jwt"
 	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/repository/consul"
+	"github.com/FTN-TwitterClone/auth/saga"
 	"github.com/FTN-TwitterClone/auth/service"
 	"github.com/FTN-TwitterClone/auth/tls"
 	"github.com/FTN-TwitterClone/auth/tracing"
@@ -41,12 +42,17 @@ func main() {
 
 	authRepository, err := consul.NewConsulAuthRepository(tracer)
 	if err != nil {
-		//log.Fatal(err)
+		log.Fatal(err)
 	}
 
 	emailSender := email.NewEmailSender(tracer)
 
-	authService := service.NewAuthService(tracer, authRepository, emailSender)
+	registerUserOrchestrator, err := saga.NewRegisterUserOrchestrator(authRepository)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	authService := service.NewAuthService(tracer, authRepository, emailSender, registerUserOrchestrator)
 
 	authController := controller.NewAuthController(tracer, authService)
 

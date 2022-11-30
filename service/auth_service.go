@@ -8,6 +8,7 @@ import (
 	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/repository"
+	"github.com/FTN-TwitterClone/auth/saga"
 	"github.com/FTN-TwitterClone/auth/tls"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/profile"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
@@ -28,16 +29,18 @@ import (
 )
 
 type AuthService struct {
-	tracer         trace.Tracer
-	authRepository repository.AuthRepository
-	emailSender    *email.EmailSender
+	tracer                   trace.Tracer
+	authRepository           repository.AuthRepository
+	emailSender              *email.EmailSender
+	registerUserOrchestrator *saga.RegisterUserOrchestrator
 }
 
-func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, emailSender *email.EmailSender) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, emailSender *email.EmailSender, registerUserOrchestrator *saga.RegisterUserOrchestrator) *AuthService {
 	return &AuthService{
 		tracer,
 		authRepository,
 		emailSender,
+		registerUserOrchestrator,
 	}
 }
 
