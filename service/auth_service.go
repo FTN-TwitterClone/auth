@@ -64,7 +64,18 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 		return appErr
 	}
 
-	s.registerUserOrchestrator.Start()
+	newUser := saga.NewUser{
+		Username:  userForm.Username,
+		Email:     userForm.Email,
+		FirstName: userForm.FirstName,
+		LastName:  userForm.LastName,
+		Town:      userForm.Town,
+		Gender:    userForm.Gender,
+		Private:   true,
+		Role:      "ROLE_USER",
+	}
+
+	s.registerUserOrchestrator.Start(newUser)
 
 	return nil
 }
@@ -96,7 +107,16 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 		return &app_errors.AppError{500, ""}
 	}
 
-	s.registerUserOrchestrator.Start()
+	newUser := saga.NewUser{
+		Username:    businessUserForm.Username,
+		Email:       businessUserForm.Email,
+		Website:     businessUserForm.Website,
+		CompanyName: businessUserForm.CompanyName,
+		Private:     false,
+		Role:        "ROLE_BUSINESS",
+	}
+
+	s.registerUserOrchestrator.Start(newUser)
 
 	return nil
 }
@@ -328,6 +348,8 @@ func (s *AuthService) RecoverAccount(ctx context.Context, recoveryId string, pas
 }
 
 func (s *AuthService) verifyCaptcha(ctx context.Context, token string) (bool, error) {
+	return true, nil
+
 	_, span := s.tracer.Start(ctx, "AuthService.verifyCaptcha")
 	defer span.End()
 

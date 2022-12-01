@@ -44,15 +44,20 @@ func NewRegisterUserHandler(authRepository repository.AuthRepository, emailSende
 	return h, nil
 }
 
-func (h RegisterUserHandler) handleCommand(m *nats.Msg) {
+func (h RegisterUserHandler) handleCommand(c RegisterUserCommand) {
+	switch c.Command {
+	case ConfirmAuth:
+		h.handleConfirmAuth(c.User)
+	case RollbackAuth:
+		h.handleRollbackAuth(c.User)
+	}
+}
+
+func (h RegisterUserHandler) handleConfirmAuth(user NewUser) {
 
 }
 
-func (h RegisterUserHandler) handleSocialGraphFail(m *nats.Msg) {
-
-}
-
-func (h RegisterUserHandler) handleSocialGraphSuccess(m *nats.Msg) {
+func (h RegisterUserHandler) handleRollbackAuth(user NewUser) {
 
 }
 

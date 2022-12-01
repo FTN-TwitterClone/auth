@@ -47,6 +47,6 @@ type RegisterUserCommand struct {
 }
 
 type RegisterUserReply struct {
-	Command RegisterUserReplyType
-	User    NewUser
+	Reply RegisterUserReplyType
+	User  NewUser
 }

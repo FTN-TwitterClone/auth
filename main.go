@@ -52,6 +52,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	_, err = saga.NewRegisterUserHandler(authRepository, emailSender)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	authService := service.NewAuthService(tracer, authRepository, emailSender, registerUserOrchestrator)
 
 	authController := controller.NewAuthController(tracer, authService)

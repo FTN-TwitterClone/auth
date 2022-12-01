@@ -3,7 +3,6 @@ package saga
 import (
 	"fmt"
 	"github.com/nats-io/nats.go"
-	"log"
 	"os"
 )
 
@@ -40,29 +39,47 @@ func NewRegisterUserOrchestrator() (*RegisterUserOrchestrator, error) {
 }
 
 func (o RegisterUserOrchestrator) Start(user NewUser) {
-	//c :=
+	c := RegisterUserCommand{
+		Command: SaveProfile,
+		User:    user,
+	}
 
-	err := o.conn.Publish(REGISTER_COMMAND, []byte("hello world!"))
-	if err != nil {
-		log.Fatal(err)
+	o.sendCommand(c)
+}
+
+func (o RegisterUserOrchestrator) handleReply(r RegisterUserReply) {
+	switch r.Reply {
+	case ProfileSuccess:
+		o.sendCommand(RegisterUserCommand{
+			Command: SaveSocialGraph,
+			User:    r.User,
+		})
+	case ProfileFail:
+		o.sendCommand(RegisterUserCommand{
+			Command: RollbackAuth,
+			User:    r.User,
+		})
+	case ProfileRollback:
+		o.sendCommand(RegisterUserCommand{
+			Command: RollbackAuth,
+			User:    r.User,
+		})
+	case SocialGraphSuccess:
+		o.sendCommand(RegisterUserCommand{
+			Command: ConfirmAuth,
+			User:    r.User,
+		})
+	case SocialGraphFail:
+		o.sendCommand(RegisterUserCommand{
+			Command: RollbackProfile,
+			User:    r.User,
+		})
 	}
 }
 
-func (o RegisterUserOrchestrator) handleReply(m *nats.Msg) {
-	//TODO: read from message
-
-	r := ProfileSuccess
-
-	switch r {
-	case ProfileSuccess:
-		println(SaveSocialGraph)
-	case ProfileFail:
-		println(RollbackAuth)
-	case ProfileRollback:
-		println(RollbackAuth)
-	case SocialGraphSuccess:
-		println(ConfirmAuth)
-	case SocialGraphFail:
-		println(RollbackProfile)
+func (o RegisterUserOrchestrator) sendCommand(c RegisterUserCommand) {
+	err := o.conn.Publish(REGISTER_COMMAND, c)
+	if err != nil {
+		//TODO: error
 	}
 }
