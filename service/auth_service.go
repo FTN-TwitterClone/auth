@@ -75,7 +75,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 		Role:      "ROLE_USER",
 	}
 
-	s.registerUserOrchestrator.Start(newUser)
+	s.registerUserOrchestrator.Start(serviceCtx, newUser)
 
 	return nil
 }
@@ -116,7 +116,7 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 		Role:        "ROLE_BUSINESS",
 	}
 
-	s.registerUserOrchestrator.Start(newUser)
+	s.registerUserOrchestrator.Start(serviceCtx, newUser)
 
 	return nil
 }

@@ -1,16 +1,23 @@
 package saga
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/FTN-TwitterClone/auth/tracing"
 	"github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"os"
 )
 
 type RegisterUserOrchestrator struct {
-	conn *nats.EncodedConn
+	tracer trace.Tracer
+	conn   *nats.Conn
 }
 
-func NewRegisterUserOrchestrator() (*RegisterUserOrchestrator, error) {
+func NewRegisterUserOrchestrator(tracer trace.Tracer) (*RegisterUserOrchestrator, error) {
 	natsHost := os.Getenv("NATS_HOST")
 	natsPort := os.Getenv("NATS_PORT")
 
@@ -21,16 +28,12 @@ func NewRegisterUserOrchestrator() (*RegisterUserOrchestrator, error) {
 		return nil, err
 	}
 
-	encConn, err := nats.NewEncodedConn(connection, nats.JSON_ENCODER)
-	if err != nil {
-		return nil, err
-	}
-
 	o := &RegisterUserOrchestrator{
-		conn: encConn,
+		tracer: tracer,
+		conn:   connection,
 	}
 
-	_, err = encConn.Subscribe(REGISTER_REPLY, o.handleReply)
+	_, err = connection.Subscribe(REGISTER_REPLY, o.handleReply)
 	if err != nil {
 		return nil, err
 	}
@@ -38,48 +41,85 @@ func NewRegisterUserOrchestrator() (*RegisterUserOrchestrator, error) {
 	return o, nil
 }
 
-func (o RegisterUserOrchestrator) Start(user NewUser) {
+func (o RegisterUserOrchestrator) Start(ctx context.Context, user NewUser) {
+	orchestratorCtx, span := o.tracer.Start(ctx, "RegisterUserOrchestrator.Start")
+	defer span.End()
+
 	c := RegisterUserCommand{
 		Command: SaveProfile,
 		User:    user,
 	}
 
-	o.sendCommand(c)
+	o.sendCommand(orchestratorCtx, c)
 }
 
-func (o RegisterUserOrchestrator) handleReply(r RegisterUserReply) {
+func (o RegisterUserOrchestrator) handleReply(msg *nats.Msg) {
+	remoteCtx, err := tracing.GetNATSParentContext(msg)
+	if err != nil {
+
+	}
+
+	orchestratorCtx, span := otel.Tracer("auth").Start(trace.ContextWithRemoteSpanContext(context.Background(), remoteCtx), msg.Subject)
+	defer span.End()
+
+	var r RegisterUserReply
+
+	err = json.Unmarshal(msg.Data, &r)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return
+	}
+
 	switch r.Reply {
 	case ProfileSuccess:
-		o.sendCommand(RegisterUserCommand{
+		o.sendCommand(orchestratorCtx, RegisterUserCommand{
 			Command: SaveSocialGraph,
 			User:    r.User,
 		})
 	case ProfileFail:
-		o.sendCommand(RegisterUserCommand{
+		o.sendCommand(orchestratorCtx, RegisterUserCommand{
 			Command: RollbackAuth,
 			User:    r.User,
 		})
 	case ProfileRollback:
-		o.sendCommand(RegisterUserCommand{
+		o.sendCommand(orchestratorCtx, RegisterUserCommand{
 			Command: RollbackAuth,
 			User:    r.User,
 		})
 	case SocialGraphSuccess:
-		o.sendCommand(RegisterUserCommand{
+		o.sendCommand(orchestratorCtx, RegisterUserCommand{
 			Command: ConfirmAuth,
 			User:    r.User,
 		})
 	case SocialGraphFail:
-		o.sendCommand(RegisterUserCommand{
+		o.sendCommand(orchestratorCtx, RegisterUserCommand{
 			Command: RollbackProfile,
 			User:    r.User,
 		})
 	}
 }
 
-func (o RegisterUserOrchestrator) sendCommand(c RegisterUserCommand) {
-	err := o.conn.Publish(REGISTER_COMMAND, c)
+func (o RegisterUserOrchestrator) sendCommand(ctx context.Context, c RegisterUserCommand) {
+	_, span := o.tracer.Start(ctx, "RegisterUserOrchestrator.handleReply")
+	defer span.End()
+
+	headers := nats.Header{}
+	headers.Set(tracing.TRACE_ID, span.SpanContext().TraceID().String())
+	headers.Set(tracing.SPAN_ID, span.SpanContext().SpanID().String())
+
+	data, err := json.Marshal(c)
 	if err != nil {
-		//TODO: error
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	msg := nats.Msg{
+		Subject: REGISTER_COMMAND,
+		Header:  headers,
+		Data:    data,
+	}
+
+	err = o.conn.PublishMsg(&msg)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 	}
 }
