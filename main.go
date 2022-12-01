@@ -47,7 +47,7 @@ func main() {
 
 	emailSender := email.NewEmailSender(tracer)
 
-	registerUserOrchestrator, err := saga.NewRegisterUserOrchestrator(authRepository, emailSender)
+	registerUserOrchestrator, err := saga.NewRegisterUserOrchestrator()
 	if err != nil {
 		log.Fatal(err)
 	}
