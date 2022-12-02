@@ -34,6 +34,15 @@ func (e EmailSender) SendRecoveryEmail(ctx context.Context, recipient string, re
 	e.sendEmail(senderCtx, recipient, content)
 }
 
+func (e EmailSender) SendRegistrationUnsuccessfulEmail(ctx context.Context, recipient string) {
+	senderCtx, span := e.tracer.Start(ctx, "EmailSender.SendRegistrationUnsuccessfulEmail")
+	defer span.End()
+
+	content := fmt.Sprintf("Your registration was unsuccessful.")
+
+	e.sendEmail(senderCtx, recipient, content)
+}
+
 func (e EmailSender) sendEmail(ctx context.Context, recipient string, content string) {
 	_, span := e.tracer.Start(ctx, "EmailSender.sendEmail")
 	defer span.End()

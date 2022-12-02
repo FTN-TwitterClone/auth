@@ -112,6 +112,23 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 	return nil
 }
 
+func (r *ConsulAuthRepository) DeleteUser(ctx context.Context, username string) error {
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.DeleteUser")
+	defer span.End()
+
+	kv := r.cli.KV()
+
+	userKey := fmt.Sprintf("user/%s/", username)
+
+	_, err := kv.Delete(userKey, nil)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func (r *ConsulAuthRepository) SaveVerification(ctx context.Context, uuid string, username string) error {
 	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveVerification")
 	defer span.End()

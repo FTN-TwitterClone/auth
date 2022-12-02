@@ -87,6 +87,13 @@ func (h RegisterUserHandler) handleConfirmAuth(ctx context.Context, user NewUser
 }
 
 func (h RegisterUserHandler) handleRollbackAuth(ctx context.Context, user NewUser) {
-	_, span := h.tracer.Start(ctx, "RegisterUserHandler.handleRollbackAuth")
+	handlerCtx, span := h.tracer.Start(ctx, "RegisterUserHandler.handleRollbackAuth")
 	defer span.End()
+
+	err := h.authRepository.DeleteUser(handlerCtx, user.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	go h.emailSender.SendRegistrationUnsuccessfulEmail(handlerCtx, user.Email)
 }
