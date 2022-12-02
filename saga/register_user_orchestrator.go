@@ -59,7 +59,7 @@ func (o RegisterUserOrchestrator) handleReply(msg *nats.Msg) {
 
 	}
 
-	orchestratorCtx, span := otel.Tracer("auth").Start(trace.ContextWithRemoteSpanContext(context.Background(), remoteCtx), msg.Subject)
+	orchestratorCtx, span := otel.Tracer("auth").Start(trace.ContextWithRemoteSpanContext(context.Background(), remoteCtx), "RegisterUserOrchestrator.handleReply")
 	defer span.End()
 
 	var r RegisterUserReply
@@ -100,7 +100,7 @@ func (o RegisterUserOrchestrator) handleReply(msg *nats.Msg) {
 }
 
 func (o RegisterUserOrchestrator) sendCommand(ctx context.Context, c RegisterUserCommand) {
-	_, span := o.tracer.Start(ctx, "RegisterUserOrchestrator.handleReply")
+	_, span := o.tracer.Start(ctx, "RegisterUserOrchestrator.sendCommand")
 	defer span.End()
 
 	headers := nats.Header{}
@@ -110,6 +110,7 @@ func (o RegisterUserOrchestrator) sendCommand(ctx context.Context, c RegisterUse
 	data, err := json.Marshal(c)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
+		return
 	}
 
 	msg := nats.Msg{

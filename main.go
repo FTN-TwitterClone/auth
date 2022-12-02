@@ -52,7 +52,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	_, err = saga.NewRegisterUserHandler(authRepository, emailSender)
+	_, err = saga.NewRegisterUserHandler(tracer, authRepository, emailSender)
 	if err != nil {
 		log.Fatal(err)
 	}
