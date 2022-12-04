@@ -348,8 +348,6 @@ func (s *AuthService) RecoverAccount(ctx context.Context, recoveryId string, pas
 }
 
 func (s *AuthService) verifyCaptcha(ctx context.Context, token string) (bool, error) {
-	return true, nil
-
 	_, span := s.tracer.Start(ctx, "AuthService.verifyCaptcha")
 	defer span.End()
 

@@ -131,9 +131,13 @@ func (r *ConsulAuthRepository) DeleteUser(ctx context.Context, username string) 
 
 	kv := r.cli.KV()
 
-	userKey := fmt.Sprintf("user/%s/", username)
+	userKey, err := r.consctructKey("user/%s/", username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 
-	_, err := kv.Delete(userKey, nil)
+	_, err = kv.Delete(userKey, nil)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
