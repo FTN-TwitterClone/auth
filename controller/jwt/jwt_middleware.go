@@ -5,6 +5,7 @@ import (
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"net/http"
@@ -33,6 +34,8 @@ func ExtractJWTUserMiddleware(tracer trace.Tracer) mux.MiddlewareFunc {
 						Role:     claims["role"].(string),
 						Exp:      time.UnixMilli(int64(claims["exp"].(float64))),
 					}
+
+					span.SetAttributes(attribute.String("user", authUser.Username))
 
 					authCtx := context.WithValue(newCtx, "authUser", authUser)
 
