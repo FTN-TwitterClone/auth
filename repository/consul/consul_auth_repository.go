@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"os"
+	"strings"
 )
 
 type ConsulAuthRepository struct {
@@ -43,7 +44,11 @@ func (r *ConsulAuthRepository) UsernameExists(ctx context.Context, username stri
 
 	kv := r.cli.KV()
 
-	userKey := fmt.Sprintf("user/%s/", username)
+	userKey, err := r.consctructKey("user/%s/", username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
 
 	data, _, err := kv.List(userKey, nil)
 
@@ -65,7 +70,11 @@ func (r *ConsulAuthRepository) GetUser(ctx context.Context, username string) (*m
 
 	kv := r.cli.KV()
 
-	userKey := fmt.Sprintf("user/%s/", username)
+	userKey, err := r.consctructKey("user/%s/", username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
 
 	pair, _, err := kv.Get(userKey, nil)
 	if err != nil {
@@ -99,7 +108,11 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 
 	kv := r.cli.KV()
 
-	userKey := fmt.Sprintf("user/%s/", pr.Username)
+	userKey, err := r.consctructKey("user/%s/", pr.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 
 	p := &api.KVPair{Key: userKey, Value: data}
 
@@ -135,11 +148,15 @@ func (r *ConsulAuthRepository) SaveVerification(ctx context.Context, uuid string
 
 	kv := r.cli.KV()
 
-	verificationKey := fmt.Sprintf("verification/%s/", uuid)
+	verificationKey, err := r.consctructKey("verification/%s/", uuid)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 
 	p := &api.KVPair{Key: verificationKey, Value: []byte(username)}
 
-	_, err := kv.Put(p, nil)
+	_, err = kv.Put(p, nil)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -154,7 +171,11 @@ func (r *ConsulAuthRepository) GetVerification(ctx context.Context, uuid string)
 
 	kv := r.cli.KV()
 
-	verificationKey := fmt.Sprintf("verification/%s/", uuid)
+	verificationKey, err := r.consctructKey("verification/%s/", uuid)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
+	}
 
 	pair, _, err := kv.Get(verificationKey, nil)
 	if err != nil {
@@ -175,9 +196,13 @@ func (r *ConsulAuthRepository) DeleteVerification(ctx context.Context, uuid stri
 
 	kv := r.cli.KV()
 
-	verificationKey := fmt.Sprintf("verification/%s/", uuid)
+	verificationKey, err := r.consctructKey("verification/%s/", uuid)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 
-	_, err := kv.Delete(verificationKey, nil)
+	_, err = kv.Delete(verificationKey, nil)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -192,11 +217,15 @@ func (r *ConsulAuthRepository) SaveRecovery(ctx context.Context, uuid string, us
 
 	kv := r.cli.KV()
 
-	recoveryKey := fmt.Sprintf("recovery/%s/", uuid)
+	recoveryKey, err := r.consctructKey("recovery/%s/", uuid)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 
 	p := &api.KVPair{Key: recoveryKey, Value: []byte(username)}
 
-	_, err := kv.Put(p, nil)
+	_, err = kv.Put(p, nil)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -211,7 +240,11 @@ func (r *ConsulAuthRepository) GetRecovery(ctx context.Context, uuid string) (st
 
 	kv := r.cli.KV()
 
-	recoveryKey := fmt.Sprintf("recovery/%s/", uuid)
+	recoveryKey, err := r.consctructKey("recovery/%s/", uuid)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
+	}
 
 	pair, _, err := kv.Get(recoveryKey, nil)
 	if err != nil {
@@ -232,13 +265,27 @@ func (r *ConsulAuthRepository) DeleteRecovery(ctx context.Context, uuid string) 
 
 	kv := r.cli.KV()
 
-	recoveryKey := fmt.Sprintf("recovery/%s/", uuid)
+	recoveryKey, err := r.consctructKey("recovery/%s/", uuid)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
 
-	_, err := kv.Delete(recoveryKey, nil)
+	_, err = kv.Delete(recoveryKey, nil)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
 	return nil
+}
+
+func (r *ConsulAuthRepository) consctructKey(format string, keyParams ...string) (string, error) {
+	for _, k := range keyParams {
+		if strings.ContainsAny(k, "\r\b/") {
+			return "", errors.New("Invalid character in key!")
+		}
+	}
+
+	return fmt.Sprintf(format, keyParams), nil
 }
