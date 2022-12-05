@@ -34,12 +34,12 @@ type RegisterBusinessUser struct {
 //Change password form
 type ChangePassword struct {
 	OldPassword string `json:"oldPassword"`
-	NewPassword string `json:"newPassword"`
+	NewPassword string `json:"newPassword" validate:"required,password"`
 }
 
 //Recover account password form
 type NewPassword struct {
-	Password string `json:"password"`
+	Password string `json:"password" validate:"required,password"`
 }
 
 //Details relevant for storing in auth service
