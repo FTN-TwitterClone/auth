@@ -136,6 +136,13 @@ func (c *AuthController) ChangePassword(w http.ResponseWriter, req *http.Request
 		return
 	}
 
+	err = c.validator.Struct(pass)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 422)
+		return
+	}
+
 	appErr := c.authService.ChangePassword(ctx, pass)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
@@ -168,6 +175,13 @@ func (c *AuthController) RecoverAccount(w http.ResponseWriter, req *http.Request
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	err = c.validator.Struct(pass)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 422)
 		return
 	}
 
