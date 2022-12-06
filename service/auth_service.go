@@ -8,18 +8,12 @@ import (
 	"github.com/FTN-TwitterClone/auth/email"
 	"github.com/FTN-TwitterClone/auth/model"
 	"github.com/FTN-TwitterClone/auth/repository"
-	"github.com/FTN-TwitterClone/auth/tls"
-	"github.com/FTN-TwitterClone/grpc-stubs/proto/profile"
-	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
+	"github.com/FTN-TwitterClone/auth/saga"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,16 +22,18 @@ import (
 )
 
 type AuthService struct {
-	tracer         trace.Tracer
-	authRepository repository.AuthRepository
-	emailSender    *email.EmailSender
+	tracer                   trace.Tracer
+	authRepository           repository.AuthRepository
+	emailSender              *email.EmailSender
+	registerUserOrchestrator *saga.RegisterUserOrchestrator
 }
 
-func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, emailSender *email.EmailSender) *AuthService {
+func NewAuthService(tracer trace.Tracer, authRepository repository.AuthRepository, emailSender *email.EmailSender, registerUserOrchestrator *saga.RegisterUserOrchestrator) *AuthService {
 	return &AuthService{
 		tracer,
 		authRepository,
 		emailSender,
+		registerUserOrchestrator,
 	}
 }
 
@@ -62,58 +58,24 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 		"ROLE_USER",
 	}
 
-	appErr := s.saveUserAndSendConfirmation(serviceCtx, userDetails)
+	appErr := s.saveUser(serviceCtx, userDetails)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		return appErr
 	}
 
-	user := profile.ProfileUser{
+	newUser := saga.NewUser{
 		Username:  userForm.Username,
 		Email:     userForm.Email,
 		FirstName: userForm.FirstName,
 		LastName:  userForm.LastName,
 		Town:      userForm.Town,
 		Gender:    userForm.Gender,
+		Private:   true,
+		Role:      "ROLE_USER",
 	}
 
-	conn, err := getgRPCConnection("profile:9001")
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return appErr
-	}
-
-	profileService := profile.NewProfileServiceClient(conn)
-	_, err = profileService.RegisterUser(serviceCtx, &user)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return &app_errors.AppError{500, ""}
-	}
-
-	suser := social_graph.SocialGraphUser{
-		Username:  userForm.Username,
-		Email:     userForm.Email,
-		FirstName: userForm.FirstName,
-		LastName:  userForm.LastName,
-		Town:      userForm.Town,
-		Gender:    userForm.Gender,
-	}
-
-	sconn, err := getgRPCConnection("social-graph:9001")
-	defer sconn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return appErr
-	}
-
-	socialGraphService := social_graph.NewSocialGraphServiceClient(sconn)
-
-	_, err = socialGraphService.RegisterUser(serviceCtx, &suser)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return &app_errors.AppError{500, ""}
-	}
+	s.registerUserOrchestrator.Start(serviceCtx, newUser)
 
 	return nil
 }
@@ -139,59 +101,28 @@ func (s *AuthService) RegisterBusinessUser(ctx context.Context, businessUserForm
 		"ROLE_BUSINESS",
 	}
 
-	appErr := s.saveUserAndSendConfirmation(serviceCtx, userDetails)
+	appErr := s.saveUser(serviceCtx, userDetails)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		return &app_errors.AppError{500, ""}
 	}
 
-	conn, err := getgRPCConnection("profile:9001")
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return appErr
-	}
-
-	profileService := profile.NewProfileServiceClient(conn)
-	user := profile.ProfileBusinessUser{
+	newUser := saga.NewUser{
 		Username:    businessUserForm.Username,
 		Email:       businessUserForm.Email,
 		Website:     businessUserForm.Website,
 		CompanyName: businessUserForm.CompanyName,
-	}
-	_, err = profileService.RegisterBusinessUser(serviceCtx, &user)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return &app_errors.AppError{500, ""}
+		Private:     false,
+		Role:        "ROLE_BUSINESS",
 	}
 
-	suser := social_graph.SocialGraphBusinessUser{
-		Username:    businessUserForm.Username,
-		Email:       businessUserForm.Email,
-		Website:     businessUserForm.Website,
-		CompanyName: businessUserForm.CompanyName,
-	}
-
-	sconn, err := getgRPCConnection("social-graph:9001")
-	defer sconn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return appErr
-	}
-
-	socialGraphService := social_graph.NewSocialGraphServiceClient(sconn)
-
-	_, err = socialGraphService.RegisterBusinessUser(serviceCtx, &suser)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return &app_errors.AppError{500, ""}
-	}
+	s.registerUserOrchestrator.Start(serviceCtx, newUser)
 
 	return nil
 }
 
-func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user model.UserDetails) *app_errors.AppError {
-	serviceCtx, span := s.tracer.Start(ctx, "AuthService.saveUserAndSendConfirmation")
+func (s *AuthService) saveUser(ctx context.Context, user model.UserDetails) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "AuthService.saveUser")
 	defer span.End()
 
 	usernameExists, err := s.authRepository.UsernameExists(serviceCtx, user.Username)
@@ -216,7 +147,7 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 		Username:     user.Username,
 		PasswordHash: string(hashBytes),
 		Email:        user.Email,
-		Role:         "ROLE_USER",
+		Role:         user.Role,
 		Enabled:      false,
 	}
 
@@ -225,15 +156,6 @@ func (s *AuthService) saveUserAndSendConfirmation(ctx context.Context, user mode
 		span.SetStatus(codes.Error, err.Error())
 		return &app_errors.AppError{500, ""}
 	}
-
-	verificationId := uuid.New().String()
-	err = s.authRepository.SaveVerification(serviceCtx, verificationId, u.Username)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return &app_errors.AppError{500, ""}
-	}
-
-	go s.emailSender.SendVerificationEmail(serviceCtx, user.Email, verificationId)
 
 	return nil
 }
@@ -459,21 +381,4 @@ func (s *AuthService) verifyCaptcha(ctx context.Context, token string) (bool, er
 	}
 
 	return true, nil
-}
-
-func getgRPCConnection(address string) (*grpc.ClientConn, error) {
-	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
-
-	conn, err := grpc.DialContext(
-		context.Background(),
-		address,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	)
-
-	if err != nil {
-		log.Fatalf("Failed to start gRPC connection: %v", err)
-	}
-
-	return conn, err
 }

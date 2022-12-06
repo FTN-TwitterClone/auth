@@ -44,7 +44,7 @@ func (r *ConsulAuthRepository) UsernameExists(ctx context.Context, username stri
 
 	kv := r.cli.KV()
 
-	userKey, err := r.consctructKey("user/%s/", username)
+	userKey, err := r.constructKey("user/%s/", username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return false, err
@@ -70,7 +70,7 @@ func (r *ConsulAuthRepository) GetUser(ctx context.Context, username string) (*m
 
 	kv := r.cli.KV()
 
-	userKey, err := r.consctructKey("user/%s/", username)
+	userKey, err := r.constructKey("user/%s/", username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
@@ -108,7 +108,7 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 
 	kv := r.cli.KV()
 
-	userKey, err := r.consctructKey("user/%s/", pr.Username)
+	userKey, err := r.constructKey("user/%s/", pr.Username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -125,13 +125,34 @@ func (r *ConsulAuthRepository) SaveUser(ctx context.Context, pr *model.User) err
 	return nil
 }
 
+func (r *ConsulAuthRepository) DeleteUser(ctx context.Context, username string) error {
+	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.DeleteUser")
+	defer span.End()
+
+	kv := r.cli.KV()
+
+	userKey, err := r.constructKey("user/%s/", username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	_, err = kv.Delete(userKey, nil)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func (r *ConsulAuthRepository) SaveVerification(ctx context.Context, uuid string, username string) error {
 	_, span := r.tracer.Start(ctx, "ConsulAuthRepository.SaveVerification")
 	defer span.End()
 
 	kv := r.cli.KV()
 
-	verificationKey, err := r.consctructKey("verification/%s/", uuid)
+	verificationKey, err := r.constructKey("verification/%s/", uuid)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -154,7 +175,7 @@ func (r *ConsulAuthRepository) GetVerification(ctx context.Context, uuid string)
 
 	kv := r.cli.KV()
 
-	verificationKey, err := r.consctructKey("verification/%s/", uuid)
+	verificationKey, err := r.constructKey("verification/%s/", uuid)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return "", err
@@ -179,7 +200,7 @@ func (r *ConsulAuthRepository) DeleteVerification(ctx context.Context, uuid stri
 
 	kv := r.cli.KV()
 
-	verificationKey, err := r.consctructKey("verification/%s/", uuid)
+	verificationKey, err := r.constructKey("verification/%s/", uuid)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -200,7 +221,7 @@ func (r *ConsulAuthRepository) SaveRecovery(ctx context.Context, uuid string, us
 
 	kv := r.cli.KV()
 
-	recoveryKey, err := r.consctructKey("recovery/%s/", uuid)
+	recoveryKey, err := r.constructKey("recovery/%s/", uuid)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -223,7 +244,7 @@ func (r *ConsulAuthRepository) GetRecovery(ctx context.Context, uuid string) (st
 
 	kv := r.cli.KV()
 
-	recoveryKey, err := r.consctructKey("recovery/%s/", uuid)
+	recoveryKey, err := r.constructKey("recovery/%s/", uuid)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return "", err
@@ -248,7 +269,7 @@ func (r *ConsulAuthRepository) DeleteRecovery(ctx context.Context, uuid string) 
 
 	kv := r.cli.KV()
 
-	recoveryKey, err := r.consctructKey("recovery/%s/", uuid)
+	recoveryKey, err := r.constructKey("recovery/%s/", uuid)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
@@ -263,7 +284,7 @@ func (r *ConsulAuthRepository) DeleteRecovery(ctx context.Context, uuid string) 
 	return nil
 }
 
-func (r *ConsulAuthRepository) consctructKey(format string, keyParams ...string) (string, error) {
+func (r *ConsulAuthRepository) constructKey(format string, keyParams ...string) (string, error) {
 	for _, k := range keyParams {
 		if strings.ContainsAny(k, "\r\b/") {
 			return "", errors.New("Invalid character in key!")
