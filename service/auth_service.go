@@ -65,14 +65,15 @@ func (s *AuthService) RegisterUser(ctx context.Context, userForm model.RegisterU
 	}
 
 	newUser := saga.NewUser{
-		Username:  userForm.Username,
-		Email:     userForm.Email,
-		FirstName: userForm.FirstName,
-		LastName:  userForm.LastName,
-		Town:      userForm.Town,
-		Gender:    userForm.Gender,
-		Private:   true,
-		Role:      "ROLE_USER",
+		Username:    userForm.Username,
+		Email:       userForm.Email,
+		FirstName:   userForm.FirstName,
+		LastName:    userForm.LastName,
+		Town:        userForm.Town,
+		Gender:      userForm.Gender,
+		Private:     true,
+		YearOfBirth: userForm.YearOfBirth,
+		Role:        "ROLE_USER",
 	}
 
 	s.registerUserOrchestrator.Start(serviceCtx, newUser)
