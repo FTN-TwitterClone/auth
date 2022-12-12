@@ -35,6 +35,7 @@ type NewUser struct {
 	LastName    string
 	Town        string
 	Gender      string
+	YearOfBirth int32
 	Website     string
 	CompanyName string
 	Private     bool

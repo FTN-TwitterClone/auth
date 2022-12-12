@@ -18,6 +18,7 @@ type RegisterUser struct {
 	LastName     string `json:"lastName" validate:"required"`
 	Town         string `json:"town" validate:"required"`
 	Gender       string `json:"gender" validate:"required"`
+	YearOfBirth  int32  `json:"yearOfBirth" validate:"required"`
 	CaptchaToken string `json:"captchaToken" validate:"required"`
 }
 
